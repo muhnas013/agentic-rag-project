@@ -11,7 +11,7 @@
 - [x] Integrasi PostgreSQL + pgvector selesai
 - [x] OCR tool selesai
 - [x] SQL tool selesai
-- [ ] Frontend chat basic selesai
+- [x] Frontend chat basic selesai
 - [x] Agent orchestrator dasar selesai
 - [ ] Pengujian end-to-end dilakukan
 - [ ] Dokumentasi teknis dibuat
@@ -64,13 +64,13 @@
 - [x] Uji query SQL via agent
 
 ## Fase 6: Frontend
-- [ ] Setup Vite + React/Vue project
-- [ ] Buat layout chat basic
-- [ ] Buat input prompt dan upload file
-- [ ] Integrasi API backend
-- [ ] Tampilkan respons chat
-- [ ] Tambahkan loading state dan error handling
-- [ ] Uji UX dasar
+- [x] Setup Vite + React/Vue project
+- [x] Buat layout chat basic
+- [x] Buat input prompt dan upload file
+- [x] Integrasi API backend
+- [x] Tampilkan respons chat
+- [x] Tambahkan loading state dan error handling
+- [x] Uji UX dasar
 
 ## Fase 7: Testing & Stabilitas
 - [ ] Uji endpoint backend
@@ -717,6 +717,63 @@ tidak berubah.
 `ollama rm llama3.2:3b` membebaskan 2,0 GB bila tidak diperlukan lagi.
 
 Jumlah test tetap 83, semuanya lulus.
+
+### Fase 6 — Frontend · selesai (22 Sep 2026)
+
+Vite 8 + React 19 + TailwindCSS 4 + Axios, sesuai PRD §4.1 dan §15.
+Struktur berkasnya mengikuti PRD §6: `components/{ChatBox, MessageBubble,
+UploadButton}.jsx` dan `services/api.js`.
+
+Tailwind 4 tidak lagi memakai `tailwind.config.js`; konfigurasinya lewat
+plugin Vite `@tailwindcss/vite` dan token tema ditulis di CSS (`@theme`).
+
+**Fitur PRD §15, seluruhnya ada**
+
+| Fitur | Wujudnya |
+|-------|----------|
+| Chat interface | `ChatBox.jsx`, gulir otomatis ke pesan terbaru |
+| Message bubble | Gelembung berbeda untuk pengguna dan asisten |
+| Text input | Terkunci selama Agent bekerja |
+| File upload | Tombol klip dengan persentase progres |
+| Loading indicator | Tiga titik memantul + "Agent sedang bekerja…" |
+| Markdown rendering | `react-markdown` — model kerap memakai penebalan dan daftar |
+| Error handling | Galat tampil sebagai gelembung merah, bukan `alert` |
+| Chat history | `session_id` disimpan di `localStorage`, riwayat dimuat dari backend |
+| Source/reference | Nama berkas, skor kemiripan, dan kutipan, dalam panel yang bisa dibuka |
+
+**Diuji di browser sungguhan**, bukan hanya lewat curl. Chromium dikendalikan
+lewat CDP memakai WebSocket bawaan Node — tanpa menambah satu dependensi pun:
+
+| Yang diuji | Hasil |
+|------------|-------|
+| Render awal | Header, indikator status, contoh pertanyaan, kolom masukan |
+| Indikator kesehatan | Hijau dengan nama model — membuktikan panggilan API dari browser tembus CORS |
+| Alur tanya-jawab | Pertanyaan terkirim, jawaban tampil dengan lencana tool |
+| Panel sumber | Empat potongan dengan skor 0,707 · 0,685 · 0,642 · 0,640 |
+| Unggah berkas | `k3.txt` terunggah, terindeks 1 potongan, pesan konfirmasi muncul |
+| Unggah lalu tanya | "Batas pelaporan kecelakaan kerja" dijawab "1x24 jam" — benar |
+
+**Satu kesalahan saya sendiri ketahuan lewat pengujian browser.** Contoh
+pertanyaan pertama semula ditulis "Berapa lama masa retensi dokumen
+kepegawaian?" — tanpa kata "menurut dokumen". Model 3B merutekannya ke
+`SQL_Query` dan menjawab "rata-rata 5 bulan", karangan sepenuhnya. Contoh
+pertanyaan adalah kesan pertama pengguna; ketiganya kini diambil dari
+pertanyaan yang sudah terbukti dirutekan benar. Sesudah diperbaiki, jawabannya
+"10 tahun" dengan `RAG_Search`.
+
+**Dua gejala kelemahan embedding terlihat jelas di UI**, dan justru itulah
+gunanya menampilkan sumber:
+
+1. Keempat potongan lolos penyaringan meski hanya satu yang relevan
+   (0,707 melawan 0,685 · 0,642 · 0,640). Ambang relatif D-10 tak berdaya
+   ketika seluruh skor menumpuk rapat — persis kelemahan `nomic-embed-text`
+   pada bahasa Indonesia yang tercatat di D-02b.
+2. Pada pertanyaan tentang `k3.txt` yang baru diunggah, jawabannya benar
+   tetapi **sitasinya keliru** — menyebut `panjang.md`. Isi benar, provenance
+   salah. Tanpa panel sumber, kekeliruan seperti ini tidak akan pernah
+   terlihat.
+
+**Blocker:** tidak ada.
 
 ---
 

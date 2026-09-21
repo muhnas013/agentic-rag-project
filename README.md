@@ -58,6 +58,9 @@ praktek-ai-engineer/
 │   └── tests/
 ├── docker/postgres/init/   # extension vector + user read-only
 ├── frontend/           # Vite + React chat UI
+│   └── src/
+│       ├── components/ ChatBox, MessageBubble, UploadButton
+│       └── services/   api.js
 ├── storage/
 │   ├── uploads/        # file mentah dari user
 │   └── processed/      # hasil olahan
@@ -135,6 +138,23 @@ menunjukkan apakah penyebabnya ada pada pencarian atau pada model.
 `SQL_Query` berlapis tiga: user PostgreSQL read-only dengan timeout, validasi
 query yang menolak selain `SELECT` beserta tabel di luar allowlist, dan
 `LIMIT` yang dipasang paksa.
+
+### Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev          # http://localhost:5173
+```
+
+Port 5173 harus cocok dengan `CORS_ORIGINS` di `.env` backend. Alamat backend
+diatur lewat `frontend/.env` (`VITE_API_BASE_URL`), bawaannya
+`http://localhost:8000`.
+
+Antarmukanya memuat gelembung percakapan dengan rendering Markdown, unggah
+berkas, indikator proses, penanganan galat, riwayat yang bertahan saat halaman
+dimuat ulang, serta lencana tool dan daftar potongan dokumen sumber beserta
+skor kemiripannya (PRD §15).
 
 ### Provider model
 

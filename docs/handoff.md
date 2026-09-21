@@ -7,7 +7,7 @@ menyambung tanpa mengulang pembahasan.
 
 ## Posisi saat ini
 
-**Fase 1 sampai 5 selesai. Berikutnya: Fase 6 — Frontend.**
+**Fase 1 sampai 6 selesai. Berikutnya: Fase 7 — Testing & Stabilitas.**
 
 Rincian tiap item ada di `checklist-progres.md` pada section "Log pengerjaan".
 Itu sumber kebenaran status, bukan dokumen ini.
@@ -39,7 +39,7 @@ praktek-ai-engineer/
 │   ├── tools/     rag_tool, sql_tool, ocr_tool (OCR menyusul Fase 5)
 │   ├── tests/     83 test, semuanya lulus
 │   └── reindex.py, agent.py
-├── frontend/src/{components,services}/  masih kosong
+├── frontend/       Vite + React + Tailwind, chat UI lengkap
 ├── storage/{uploads,processed}/
 └── docs/  tech-decisions.md (D-01 s/d D-14), handoff.md
 ```
@@ -82,22 +82,22 @@ docker compose up -d backend    # benar — container dibuat ulang
 docker compose restart backend  # TIDAK membaca ulang .env
 ```
 
-## Langkah berikutnya — Fase 6: Frontend
+## Langkah berikutnya — Fase 7: Testing & Stabilitas
 
-Sesuai `checklist-progres.md`:
+Sesuai `checklist-progres.md`, yang tersisa: uji endpoint backend secara
+menyeluruh, uji performa dasar, dan mencatat bug yang ditemukan. Uji alur
+RAG, OCR, dan SQL end-to-end sudah dikerjakan pada fase-fase sebelumnya.
 
-1. `npm create vite@latest frontend -- --template react` (PRD §15)
-2. Layout chat dasar, input prompt, dan tombol unggah berkas
-3. Integrasi ke API backend lewat Axios — `CORS_ORIGINS` di `.env` sudah
-   menunjuk `http://localhost:5173`
-4. Tampilkan jawaban beserta `tool_used` dan `sources`; tambahkan loading
-   state dan penanganan galat
+Dua hal yang sebaiknya diperiksa ulang di fase ini:
 
-Endpoint yang tersedia ada di README. Dua yang perlu diperhatikan frontend:
-`POST /chat` mengembalikan `answer`, `tool_used`, dan `sources`, sedangkan
-`POST /upload` mengembalikan `status` `processed` untuk dokumen dan `stored`
-untuk gambar — gambar baru bisa dibaca setelah pengguna menanyakannya lewat
-`/chat`, karena OCR dijalankan Agent, bukan saat unggah.
+1. **Mutu retrieval bahasa Indonesia.** Sudah terukur dan mengecewakan:
+   margin skor `nomic-embed-text` pada bahasa Indonesia hanya +0,0018 sampai
+   +0,0757, dibanding +0,18 ke atas pada bahasa Inggris. Gejalanya terlihat
+   di UI — keempat potongan lolos penyaringan meski hanya satu yang relevan,
+   dan sitasi sempat menunjuk berkas yang salah. Mitigasi `bge-m3` sudah
+   disiapkan sejak D-02b.
+2. **Keandalan multi-tool.** Model 3B umumnya hanya memakai satu tool per
+   giliran. Naik ke `qwen2.5:7b` hanya mengubah `OLLAMA_LLM_MODEL` di `.env`.
 
 ### Menyelesaikan sisa Fase 3 (kapan pun Ollama dipasang)
 
@@ -170,5 +170,5 @@ secara manual atau buat ulang dari `.env.example`.
 ## Cara memulai sesi berikutnya
 
 Jalankan `claude` di `/home/nzrl4h/praktek-ai-engineer`, lalu sampaikan
-kira-kira: *"lanjutkan Fase 6 Frontend, baca dulu docs/handoff.md dan
-checklist-progres.md"*.
+kira-kira: *"lanjutkan Fase 7 Testing & Stabilitas, baca dulu docs/handoff.md
+dan checklist-progres.md"*.

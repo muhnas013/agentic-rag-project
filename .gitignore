@@ -1,0 +1,35 @@
+# Environment
+.env
+.env.local
+*.env.bak
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Node / Frontend
+node_modules/
+dist/
+.vite/
+npm-debug.log*
+
+# Storage (file user, jangan ikut di-commit)
+storage/uploads/*
+storage/processed/*
+!storage/uploads/.gitkeep
+!storage/processed/.gitkeep
+
+# OCR / model cache
+.paddleocr/
+*.onnx
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store

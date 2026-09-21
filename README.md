@@ -152,9 +152,20 @@ menguji pipeline RAG, **tidak** untuk menilai mutu retrieval. Beralih ke
 Ollama pada Fase 3 cukup mengubah dua variabel pertama menjadi `ollama`.
 
 > **Penting.** Dokumen yang diindeks dengan satu model embedding harus
-> diunggah ulang setelah berganti model. Vektor dua model berbeda tidak
+> di-embedding ulang setelah berganti model. Vektor dua model berbeda tidak
 > sebanding, dan pencarian tetap mengembalikan hasil — hanya saja hasilnya
 > acak, sehingga kesalahan ini tidak terlihat kecuali sengaja diuji.
+
+Berkas asli tersimpan di `storage/uploads/`, jadi tidak perlu mengunggah
+ulang apa pun:
+
+```bash
+# periksa dulu: dokumen mana yang masih memakai model lama
+docker compose exec -w /app backend python -m backend.reindex
+
+# kerjakan
+docker compose exec -w /app backend python -m backend.reindex --jalan
+```
 
 ## Keamanan
 

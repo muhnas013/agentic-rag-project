@@ -57,14 +57,20 @@ tetapi mutu retrieval belum bisa dinilai sama sekali. Dokumen uji sengaja
 dibuat berbeda topik agar pencarian berbasis kata pun cukup memisahkannya;
 pada dokumen nyata yang bertopik mirip, `hash_stub` akan sering keliru.
 
-**Dokumen yang sudah diindeks wajib diunggah ulang setelah berganti ke model
-embedding sungguhan.** Vektor dari dua model berbeda tidak sebanding, dan
-gejalanya menipu: pencarian tetap mengembalikan hasil, hanya saja hasilnya
-acak. Baris lama bisa dikenali lewat metadata:
+**Dokumen yang sudah diindeks wajib di-embedding ulang setelah berganti ke
+model embedding sungguhan.** Vektor dari dua model berbeda tidak sebanding,
+dan gejalanya menipu: pencarian tetap mengembalikan hasil, hanya saja
+hasilnya acak — tidak ada galat, tidak ada tanda apa pun.
 
-```sql
-SELECT DISTINCT filename, metadata->>'embedding_model' FROM documents;
+Berkas asli masih ada di `storage/uploads/`, jadi cukup:
+
+```bash
+docker compose exec -w /app backend python -m backend.reindex          # periksa
+docker compose exec -w /app backend python -m backend.reindex --jalan  # kerjakan
 ```
+
+Skrip itu menampilkan model apa yang dipakai tiap dokumen, sehingga baris
+lama ketahuan sebelum sempat membingungkan.
 
 ## Cara memuat ulang konfigurasi — jangan pakai `restart`
 
@@ -106,7 +112,7 @@ privileges, jadi tidak perlu grant manual.
    dan `ollama pull nomic-embed-text` (274 MB)
 3. Ubah `.env`: `LLM_PROVIDER=ollama`, `EMBEDDING_PROVIDER=ollama`
 4. `docker compose up -d backend`, lalu cek `GET /health`
-5. Unggah ulang seluruh dokumen (lihat peringatan di atas)
+5. Embedding ulang seluruh dokumen: `python -m backend.reindex --jalan`
 6. Bandingkan hasil `POST /query` dengan catatan Fase 3 untuk menilai
    seberapa besar `hash_stub` menyesatkan
 

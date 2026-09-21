@@ -112,6 +112,28 @@ def membocorkan_system_prompt(jawaban: str) -> bool:
     return bool(_shingles(jawaban) & _SHINGLE_SYSTEM_PROMPT)
 
 
+# Pesan galat tool ditulis untuk dibaca model — isinya menyuruh memperbaiki
+# query dan memanggil tool lagi. Ketika model justru meneruskannya apa adanya,
+# pengguna menerima teks yang bukan untuknya. Ini menggantikannya dengan
+# kalimat yang wajar, tanpa menyembunyikan bahwa upayanya gagal.
+PENANDA_GALAT_TOOL = (
+    "panggil tool ini sekali lagi",
+    "Query gagal dijalankan",
+    "Query ditolak:",
+    "Perbaiki lalu coba lagi",
+)
+
+PESAN_GAGAL_TOOL = (
+    "Maaf, saya belum berhasil mengambil data itu dari database. "
+    "Coba ajukan pertanyaannya dengan cara yang sedikit berbeda."
+)
+
+
+def meneruskan_galat_tool(jawaban: str) -> bool:
+    """Apakah jawaban hanya meneruskan pesan galat internal tool?"""
+    return any(p.lower() in jawaban.lower() for p in PENANDA_GALAT_TOOL)
+
+
 @dataclass
 class AgentResult:
     """Hasil satu kali pemanggilan agent."""
@@ -210,6 +232,10 @@ async def run_agent(question: str, history: list[dict[str, str]] | None = None) 
 
     if not jawaban:
         jawaban = PESAN_KOSONG
+    elif meneruskan_galat_tool(jawaban):
+        logger.warning("Jawaban meneruskan galat tool; diganti. Pertanyaan: %r",
+                       question[:120])
+        jawaban = PESAN_GAGAL_TOOL
     if membocorkan_system_prompt(jawaban):
         logger.warning(
             "Jawaban mengutip system prompt — diganti penolakan. Pertanyaan: %r",

@@ -79,3 +79,27 @@ class TestPenapisKebocoranSystemPrompt:
     def test_penolakan_sendiri_tidak_ikut_tertangkap(self):
         """Pesan pengganti tidak boleh memicu penapis lagi."""
         assert not membocorkan_system_prompt(PENOLAKAN)
+
+
+class TestPenapisGalatTool:
+    """Pesan galat tool ditulis untuk model, bukan untuk pengguna.
+
+    Model 3B kadang meneruskannya apa adanya, sehingga pengguna menerima
+    kalimat seperti "panggil tool ini sekali lagi" yang bukan untuknya.
+    """
+
+    def test_galat_yang_diteruskan_tertangkap(self):
+        from backend.agent import meneruskan_galat_tool
+
+        assert meneruskan_galat_tool(
+            "Query gagal dijalankan. Periksa kembali nama tabel dan kolomnya."
+        )
+        assert meneruskan_galat_tool("Query ditolak: Tabel 'pg_user' tidak ada.")
+
+    def test_jawaban_wajar_lolos(self):
+        from backend.agent import meneruskan_galat_tool
+
+        assert not meneruskan_galat_tool("Jumlah pegawai di bagian Keuangan adalah 3.")
+        assert not meneruskan_galat_tool(
+            "Maaf, informasi itu tidak ada di dalam dokumen."
+        )

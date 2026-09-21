@@ -121,6 +121,40 @@ def _format_hasil(kolom: list[str], baris: list[tuple]) -> str:
     return "\n".join(garis)
 
 
+# Nama kolom atau relasi yang tidak dikenal, dikutip PostgreSQL dalam
+# tanda petik ganda.
+POLA_TIDAK_DIKENAL = re.compile(r'(column|relation)\s+"([^"]+)"\s+does not exist', re.I)
+
+
+def _petunjuk_galat(exc: Exception) -> str:
+    """Ubah galat database menjadi petunjuk yang bisa ditindaklanjuti model.
+
+    Pesan umum seperti "query gagal" membuat model mengulang kesalahan yang
+    sama. Pada pengujian matriks PRD §17, model menulis `WHERE bagian = ...`
+    pada tabel `pengajuan_cuti` — kolom itu ada di `pegawai` — dan tanpa tahu
+    kolom mana yang salah, percobaan berikutnya pun meleset.
+
+    Yang disebutkan hanya nama yang ditulis model itu sendiri beserta daftar
+    tabel yang memang sudah tercantum di deskripsi tool, sehingga tidak ada
+    struktur internal yang bocor.
+    """
+    cocok = POLA_TIDAK_DIKENAL.search(str(exc))
+    if cocok:
+        jenis = "Kolom" if cocok.group(1).lower() == "column" else "Tabel"
+        return (
+            f"{jenis} '{cocok.group(2)}' tidak ada. Periksa kembali kolom milik "
+            f"tiap tabel: kolom `bagian` dan `jabatan` ada di `pegawai`, "
+            f"sedangkan `jenis`, `status`, dan `jumlah_hari` ada di "
+            f"`pengajuan_cuti`. Gunakan JOIN bila perlu menggabungkan keduanya. "
+            f"Perbaiki query lalu panggil tool ini sekali lagi; jangan "
+            f"menyampaikan galat ini kepada pengguna."
+        )
+    return (
+        "Query gagal dijalankan. Periksa kembali nama tabel dan kolomnya, "
+        "perbaiki, lalu panggil tool ini sekali lagi."
+    )
+
+
 @tool("SQL_Query")
 def sql_query(query: str) -> str:
     """Jalankan satu perintah SELECT PostgreSQL untuk mengambil data.
@@ -161,9 +195,7 @@ def sql_query(query: str) -> str:
     except Exception as exc:
         record(ToolInvocation("SQL_Query", ok=False, detail=str(exc)))
         logger.warning("SQL gagal: %s", exc)
-        # Detail galat database tidak diteruskan mentah-mentah agar struktur
-        # internal tidak bocor lewat jawaban.
-        return "Query gagal dijalankan. Periksa nama kolom dan tabelnya."
+        return _petunjuk_galat(exc)
 
     record(ToolInvocation("SQL_Query", ok=True, detail=aman))
     logger.info("SQL_Query dijalankan: %s -> %d baris", aman, len(baris))

@@ -187,6 +187,21 @@ docker compose exec -w /app backend python -m backend.reindex
 docker compose exec -w /app backend python -m backend.reindex --jalan
 ```
 
+## Pengujian
+
+```bash
+# uji unit + kontrak endpoint (deterministik, memakai tiruan)
+docker compose exec -w /app backend python -m pytest backend/tests -q
+
+# matriks uji PRD §17 terhadap sistem yang berjalan
+docker compose exec -w /app backend python -m backend.uji_matriks --ulang 3
+
+# performa tiap bagian
+docker compose exec -w /app backend python -m backend.uji_performa
+```
+
+Bug yang ditemukan sepanjang pengerjaan tercatat di [`docs/bug-log.md`](./docs/bug-log.md).
+
 ## Keamanan
 
 Sesuai PRD §18, sistem menerapkan:
@@ -196,3 +211,8 @@ Sesuai PRD §18, sistem menerapkan:
 - Dokumen hasil retrieval diperlakukan sebagai **data**, bukan instruksi
   (mitigasi prompt injection)
 - `.env` tidak pernah masuk ke Git
+
+> **Belum ada Authentication/Authorization.** PRD §24 mensyaratkan keduanya
+> dan `.env` sudah menyediakan setelan JWT, tetapi belum ada kode yang
+> memakainya — seluruh endpoint terbuka. Aman untuk pengembangan lokal,
+> tidak aman bila dipublikasikan. Lihat B-23 di `docs/bug-log.md`.

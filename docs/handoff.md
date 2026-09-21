@@ -7,7 +7,7 @@ menyambung tanpa mengulang pembahasan.
 
 ## Posisi saat ini
 
-**Fase 1 sampai 6 selesai. Berikutnya: Fase 7 — Testing & Stabilitas.**
+**Fase 1 sampai 7 selesai. Berikutnya: Fase 8 — Demo & Finalization.**
 
 Rincian tiap item ada di `checklist-progres.md` pada section "Log pengerjaan".
 Itu sumber kebenaran status, bukan dokumen ini.
@@ -41,7 +41,7 @@ praktek-ai-engineer/
 │   └── reindex.py, agent.py
 ├── frontend/       Vite + React + Tailwind, chat UI lengkap
 ├── storage/{uploads,processed}/
-└── docs/  tech-decisions.md (D-01 s/d D-14), handoff.md
+└── docs/  tech-decisions.md (D-01 s/d D-14), bug-log.md, handoff.md
 ```
 
 Git ada di branch `main`, belum ada remote.
@@ -82,22 +82,22 @@ docker compose up -d backend    # benar — container dibuat ulang
 docker compose restart backend  # TIDAK membaca ulang .env
 ```
 
-## Langkah berikutnya — Fase 7: Testing & Stabilitas
+## Langkah berikutnya — Fase 8: Demo & Finalization
 
-Sesuai `checklist-progres.md`, yang tersisa: uji endpoint backend secara
-menyeluruh, uji performa dasar, dan mencatat bug yang ditemukan. Uji alur
-RAG, OCR, dan SQL end-to-end sudah dikerjakan pada fase-fase sebelumnya.
+Sesuai `checklist-progres.md`: siapkan skenario demo, pastikan semua fitur
+utama berjalan, rapikan README final, dan tulis catatan cara menjalankan.
 
-Dua hal yang sebaiknya diperiksa ulang di fase ini:
+Bahan demo sudah tersedia: dokumen contoh terindeks, data sample
+`pegawai`/`pengajuan_cuti`, dan `struk-uji.png` untuk OCR. Matriks uji
+PRD §17 (`python -m backend.uji_matriks`) bisa dipakai memeriksa semuanya
+sekaligus sebelum demo.
 
-1. **Mutu retrieval bahasa Indonesia.** Sudah terukur dan mengecewakan:
-   margin skor `nomic-embed-text` pada bahasa Indonesia hanya +0,0018 sampai
-   +0,0757, dibanding +0,18 ke atas pada bahasa Inggris. Gejalanya terlihat
-   di UI — keempat potongan lolos penyaringan meski hanya satu yang relevan,
-   dan sitasi sempat menunjuk berkas yang salah. Mitigasi `bge-m3` sudah
-   disiapkan sejak D-02b.
-2. **Keandalan multi-tool.** Model 3B umumnya hanya memakai satu tool per
-   giliran. Naik ke `qwen2.5:7b` hanya mengubah `OLLAMA_LLM_MODEL` di `.env`.
+Satu hal yang perlu diputuskan sebelum demo: **SQL-001 hanya lulus 1 dari 3**
+karena model 3B kerap memakai tabel yang salah. Bila demo harus mulus, naik ke
+`qwen2.5:7b` (4,68 GB) hanya mengubah `OLLAMA_LLM_MODEL` di `.env`.
+
+Dan satu hal yang perlu disebut jujur saat presentasi: **Authentication dan
+Authorization belum ada** (B-23), padahal PRD §24 mensyaratkannya.
 
 ### Menyelesaikan sisa Fase 3 (kapan pun Ollama dipasang)
 
@@ -170,5 +170,5 @@ secara manual atau buat ulang dari `.env.example`.
 ## Cara memulai sesi berikutnya
 
 Jalankan `claude` di `/home/nzrl4h/praktek-ai-engineer`, lalu sampaikan
-kira-kira: *"lanjutkan Fase 7 Testing & Stabilitas, baca dulu docs/handoff.md
+kira-kira: *"lanjutkan Fase 8 Demo & Finalization, baca dulu docs/handoff.md
 dan checklist-progres.md"*.

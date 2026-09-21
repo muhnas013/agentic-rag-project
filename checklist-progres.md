@@ -13,8 +13,8 @@
 - [x] SQL tool selesai
 - [x] Frontend chat basic selesai
 - [x] Agent orchestrator dasar selesai
-- [ ] Pengujian end-to-end dilakukan
-- [ ] Dokumentasi teknis dibuat
+- [x] Pengujian end-to-end dilakukan
+- [x] Dokumentasi teknis dibuat
 - [ ] Project siap demo / presentasi
 
 ## Fase 1: Persiapan & Foundation
@@ -73,13 +73,13 @@
 - [x] Uji UX dasar
 
 ## Fase 7: Testing & Stabilitas
-- [ ] Uji endpoint backend
+- [x] Uji endpoint backend
 - [x] Uji flow RAG end-to-end (retrieval, jawaban, dan prompt injection)
 - [x] Uji OCR end-to-end
 - [x] Uji SQL query end-to-end
-- [ ] Uji performance dasar
-- [ ] Perbaiki bug yang ditemukan
-- [ ] Simpan log / dokumentasi bug
+- [x] Uji performance dasar
+- [x] Perbaiki bug yang ditemukan
+- [x] Simpan log / dokumentasi bug
 
 ## Fase 8: Demo & Finalization
 - [ ] Siapkan demo scenario
@@ -772,6 +772,84 @@ gunanya menampilkan sumber:
    tetapi **sitasinya keliru** — menyebut `panjang.md`. Isi benar, provenance
    salah. Tanpa panel sumber, kekeliruan seperti ini tidak akan pernah
    terlihat.
+
+**Blocker:** tidak ada.
+
+### Fase 7 — Testing & Stabilitas · selesai (22 Sep 2026)
+
+**Uji endpoint backend.** `backend/tests/test_api.py` — 19 test memakai
+FastAPI `TestClient`, mencakup ketujuh endpoint: status, bentuk balasan,
+validasi masukan, dan jalur galat. Embedding dan Agent diganti tiruan supaya
+uji ini deterministik dan cepat; yang diperiksa kontrak HTTP-nya, bukan mutu
+model. Integrasi sungguhan diuji terpisah lewat matriks PRD §17.
+
+Beberapa perilaku yang dikunci: unggah ulang nama sama mengganti alih-alih
+menumpuk, gambar disimpan tanpa diindeks, galat provider menjadi 503, dan
+**pertanyaan yang gagal dijawab tidak mengotori riwayat percakapan**.
+
+**Matriks uji PRD §17** dibuat sebagai skrip yang bisa dijalankan ulang
+(`backend/uji_matriks.py`). Tiap kasus diulang beberapa kali dan yang
+dilaporkan tingkat keberhasilannya — jawaban model tidak deterministik,
+jadi lulus/gagal sekali jalan mudah menyesatkan ke dua arah.
+
+| Kode | Tool | Hasil | Keterangan |
+|------|------|-------|------------|
+| RAG-001 | `RAG_Search` | **3/3** | Pertanyaan tentang isi PDF |
+| OCR-001 | `Image_OCR` | **3/3** | Nilai TOTAL pada struk terbaca benar |
+| SQL-001 | `SQL_Query` | 1/3 | Model kerap memakai tabel yang salah |
+| AGENT-001 | tanpa tool | **3/3** | Sapaan dijawab langsung |
+| AGENT-002 | `RAG_Search` | **3/3** | Pertanyaan ambigu dirutekan benar |
+| SEC-001 | ditolak | **3/3** | `DELETE FROM pegawai` ditolak validasi |
+| SEC-002 | `RAG_Search` | **3/3** | Mengaku tidak menemukan, tidak mengarang |
+
+6 dari 7 kasus lulus sepenuhnya. SQL-001 adalah batas kemampuan model 3B,
+bukan cacat tool: query yang sama dijalankan langsung selalu benar.
+
+**Uji performa dasar** (`backend/uji_performa.py`). Tiap bagian diukur
+terpisah — satu angka gabungan tidak memberi tahu apa pun, karena 6 detik
+bisa berarti embedding lambat, pencarian lambat, atau model lambat, dan
+tindakannya berbeda-beda.
+
+| Bagian | median |
+|--------|--------|
+| Koneksi database | 0 ms |
+| Embedding satu pertanyaan | 16 ms |
+| Pencarian pgvector (top_k=4) | 17 ms |
+| Agent tanpa tool | 209 ms |
+| Agent + `RAG_Search` | 929 ms |
+| Agent + `SQL_Query` | 1.386 ms |
+| OCR satu gambar | 3.521 ms |
+
+Pemuatan model OCR pertama kali 5,9 detik, sekali per proses. Seluruh jalur
+teks berada di bawah 1,5 detik — nyaman dipakai interaktif.
+
+**Empat bug diperbaiki pada fase ini**
+
+1. Pesan galat tool bocor ke pengguna. Teks seperti "panggil tool ini sekali
+   lagi" ditujukan untuk model, tetapi model kadang meneruskannya apa adanya.
+   `meneruskan_galat_tool()` menggantinya dengan kalimat wajar.
+2. Galat SQL terlalu umum untuk ditindaklanjuti. "Query gagal dijalankan"
+   membuat model mengulang kesalahan yang sama; kini nama kolom yang tidak
+   dikenal disebutkan berikut letak kolom yang benar.
+3. Spesifikasi SEC-002 pada matriks uji **saya tulis keliru** — tool yang
+   diharapkan seharusnya RAG, dan daftar frasa penerimaannya terlalu sempit.
+   Jawaban yang benar sempat terhitung gagal.
+4. Contoh pertanyaan UI yang memicu perutean salah (ditemukan Fase 6).
+
+**`docs/bug-log.md`** mengumpulkan 23 temuan sepanjang pengerjaan, lengkap
+dengan gejala, sebab, dan perbaikannya. Termasuk satu bagian khusus **bug
+pada perkakas uji sendiri** — dicatat karena sempat membuat kesimpulan salah,
+dan itu lebih berbahaya daripada bug pada kode yang diuji.
+
+**Temuan terhadap Definition of Done PRD §24.** Syarat Security mencantumkan
+**Authentication** dan **Authorization**, dan `.env` sudah menyediakan
+`JWT_SECRET_KEY` beserta kawan-kawannya — tetapi tidak ada kode yang
+memakainya. Seluruh endpoint terbuka tanpa autentikasi. Aman untuk
+pengembangan lokal, tidak aman bila dipublikasikan: `/upload` menerima berkas
+dari siapa saja dan `/chat` memakai kuota model. Syarat Security lain sudah
+terpenuhi. Dicatat sebagai B-23.
+
+Jumlah test: 83 -> 104, semuanya lulus.
 
 **Blocker:** tidak ada.
 

@@ -1,0 +1,25 @@
+# Batas atas versi dipasang pada mayor berikutnya agar build tetap dapat
+# diulang tanpa mengunci patch security.
+
+# --- API ---
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.32,<1.0
+pydantic>=2.9,<3.0
+pydantic-settings>=2.6,<3.0
+python-multipart>=0.0.12,<1.0     # form-data untuk POST /upload
+
+# --- Database ---
+SQLAlchemy>=2.0,<3.0
+psycopg[binary]>=3.2,<4.0          # driver PostgreSQL v3 (keputusan D-04)
+pgvector>=0.3,<1.0                 # tipe kolom VECTOR untuk SQLAlchemy
+
+# --- RAG ---
+langchain-text-splitters>=0.3,<1.0 # RecursiveCharacterTextSplitter
+pypdf>=5.0,<7.0                    # pembaca PDF
+httpx>=0.27,<1.0                   # klien HTTP ke Ollama / provider API
+
+# --- Validasi upload (PRD §18 - File Upload Security) ---
+python-magic>=0.4.27,<1.0          # deteksi MIME dari isi file, butuh libmagic
+
+# --- Pengujian ---
+pytest>=8.3,<9.0

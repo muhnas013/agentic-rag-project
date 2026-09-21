@@ -114,3 +114,74 @@ Sesuai PRD §18, SQL Tool memakai koneksi user read-only
 (`SQL_AGENT_DATABASE_URL`) yang berbeda dari koneksi aplikasi
 (`DATABASE_URL`). Pembatasan ini ditegakkan pada level PostgreSQL grant,
 bukan hanya validasi di kode.
+
+### D-06 — Provider LLM dan embedding dapat ditukar lewat `.env`
+
+**Masalah.** PRD §4.2 menetapkan Ollama sebagai penyedia LLM dan embedding,
+tetapi pengunduhan model lokal (4,7 GB + 274 MB) ditunda sampai Fase 3.
+Menunggu unduhan selesai akan menghentikan seluruh pengerjaan Fase 2.
+
+**Keputusan.** `llm_service.py` dan `embedding_service.py` memakai kelas
+abstrak `LLMBackend` dan `EmbeddingBackend` dengan implementasi yang dipilih
+saat proses start, berdasarkan `LLM_PROVIDER` dan `EMBEDDING_PROVIDER` di
+`.env`. Balasan tiap provider diseragamkan menjadi `ChatResponse`, termasuk
+bagian `tool_calls`, sehingga Agent Orchestrator pada Fase 4 tidak perlu
+mengetahui provider mana yang sedang aktif.
+
+Selama model lokal belum ada, LLM dilayani **Atria Dawn Preview**
+(`https://api.atria-asi.ai/v1`, model `Atria-Dawn-Preview`). Antarmukanya
+OpenAI-compatible dan mendukung *tool calling*, sehingga premis PRD §14 —
+Agent memilih sendiri di antara tiga tool — tetap dapat diuji.
+
+**Kembali ke Ollama pada Fase 3** cukup mengubah dua baris `.env`:
+
+```
+LLM_PROVIDER=ollama
+EMBEDDING_PROVIDER=ollama
+```
+
+**Konsekuensi.** Ada satu lapisan tambahan yang tidak disebut PRD. Imbalannya,
+pengujian Fase 2 tidak bergantung pada unduhan model, dan lapisan yang sama
+nanti dipakai bila Ollama sedang mati sehingga sistem butuh cadangan.
+
+**Catatan penting.** Atria **tidak** menyediakan endpoint `/v1/embeddings`,
+jadi provider ini hanya melayani LLM. Embedding tetap memerlukan Ollama
+(Fase 3), layanan API lain, atau `hash_stub` di bawah.
+
+### D-07 — `hash_stub`: embedding pengembangan tanpa model
+
+**Masalah.** Seluruh pipeline RAG — chunking, penyimpanan, pencarian
+pgvector, penyusunan konteks — tidak dapat diuji tanpa embedding, sedangkan
+tidak ada satu pun model embedding yang tersedia pada Fase 2.
+
+**Keputusan.** Ditambahkan provider ketiga `hash_stub`: setiap kata dipetakan
+ke satu dimensi lewat hash BLAKE2b, dihitung frekuensinya, lalu vektornya
+dinormalisasi. Hasilnya deterministik, berdimensi `EMBEDDING_DIM`, dan tidak
+memerlukan jaringan maupun GPU.
+
+**Batasnya harus disadari.** Yang ditangkap hanyalah kesamaan kata, bukan
+kesamaan makna: "mobil" dan "kendaraan" dianggap tidak berhubungan sama
+sekali. Karena itu `hash_stub` **tidak boleh** dipakai menilai mutu retrieval —
+penilaian itu dikerjakan pada Fase 7 dengan model embedding sebenarnya.
+Gunanya semata-mata memastikan pipa datanya benar.
+
+### D-08 — Index HNSW dengan jarak cosine pada `documents.embedding`
+
+PRD §7.2 tidak menyebut index. Tanpa index, pencarian kemiripan memindai
+seluruh tabel; jumlah baris tumbuh cepat karena satu dokumen menghasilkan
+banyak potongan.
+
+Dipilih **HNSW** (bukan IVFFlat) karena tidak memerlukan pelatihan ulang saat
+data bertambah — IVFFlat perlu dibangun ulang setelah jumlah baris berubah
+banyak. Jarak **cosine** dipakai karena seluruh provider embedding di sini
+menormalisasi panjang vektornya, sehingga arah vektor yang menentukan
+kemiripan, bukan besarannya.
+
+### D-09 — Nama berkas unggahan diganti UUID
+
+Nama asli dari pengguna tidak pernah dipakai sebagai nama berkas di disk.
+Berkas disimpan sebagai `<uuid>.<ekstensi>` di `storage/uploads/`, sedangkan
+nama aslinya disimpan di kolom `documents.filename` dan metadata.
+
+Alasannya dua: nama seperti `../../etc/passwd` menjadi tidak berbahaya, dan
+dua pengguna yang mengunggah `laporan.pdf` tidak saling menimpa berkas.

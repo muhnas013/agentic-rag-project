@@ -4,11 +4,11 @@
 - [x] Project mulai didefinisikan
 - [x] PRD dibaca dan dipahami
 - [ ] Roadmap kerja dibuat
-- [ ] Infrastruktur dasar disiapkan
-- [ ] Backend utama berjalan
-- [ ] RAG minimal berfungsi
+- [x] Infrastruktur dasar disiapkan
+- [x] Backend utama berjalan
+- [!] RAG minimal berfungsi (retrieval jalan; penyusunan jawaban menunggu LLM_API_KEY)
 - [ ] Integrasi Ollama selesai
-- [ ] Integrasi PostgreSQL + pgvector selesai
+- [x] Integrasi PostgreSQL + pgvector selesai
 - [ ] OCR tool selesai
 - [ ] SQL tool selesai
 - [ ] Frontend chat basic selesai
@@ -25,16 +25,16 @@
 - [x] Siapkan repository dan dokumentasi awal
 
 ## Fase 2: Backend Core
-- [ ] Setup FastAPI project
-- [ ] Konfigurasi CORS dan routing dasar
-- [ ] Setup PostgreSQL database
-- [ ] Setup pgvector extension
-- [ ] Buat model tabel chat history
-- [ ] Buat model tabel dokumen / embedding
-- [ ] Buat service upload dokumen
-- [ ] Buat proses embedding dokumen
-- [ ] Buat endpoint query RAG
-- [ ] Uji retrieval basic
+- [x] Setup FastAPI project
+- [x] Konfigurasi CORS dan routing dasar
+- [x] Setup PostgreSQL database
+- [x] Setup pgvector extension
+- [x] Buat model tabel chat history
+- [x] Buat model tabel dokumen / embedding
+- [x] Buat service upload dokumen
+- [x] Buat proses embedding dokumen
+- [x] Buat endpoint query RAG
+- [x] Uji retrieval basic
 
 ## Fase 3: Integrasi LLM Lokal
 - [ ] Setup Ollama
@@ -182,6 +182,80 @@ Risiko yang diterima dan mitigasinya:
   **Perlu dicek ulang saat Fase 7.**
 
 Blocker: tidak ada. Ollama belum terpasang — pengunduhan model dilakukan di Fase 3.
+
+### Fase 2 — Backend Core · selesai (21 Sep 2026)
+
+Hasil, seluruhnya diverifikasi dengan container yang benar-benar berjalan:
+
+**Infrastruktur**
+- `docker-compose.yml` — service `postgres` (`pgvector/pgvector:pg16`, volume
+  persisten `postgres_data`, healthcheck) dan `backend` (build dari
+  `backend/Dockerfile`, `depends_on: service_healthy`).
+- `backend/Dockerfile` — `python:3.12-slim` + `libmagic1`, dijalankan sebagai
+  user non-root, `--reload` aktif karena `./backend` di-mount sebagai volume.
+- `docker/postgres/init/` — dua skrip yang berjalan sekali saat volume kosong:
+  mengaktifkan extension `vector` dan membuat user read-only `rag_readonly`.
+- `.env` ditulis dari sudut pandang host; `docker-compose.yml` menimpa
+  `DATABASE_URL` dan `OLLAMA_BASE_URL` untuk sudut pandang container.
+
+**Kode backend**
+- `config.py` — seluruh setting dibaca dari `.env` lewat pydantic-settings.
+- `database.py` — dua engine terpisah (aplikasi dan SQL Agent read-only),
+  `init_database()`, `check_database_connection()`.
+- `models.py` — `chat_history` dan `documents` persis PRD §7, termasuk nama
+  kolom `metadata` dan `VECTOR(768)`.
+- `schemas.py`, `main.py` — tujuh endpoint (lihat README).
+- `services/embedding_service.py`, `services/llm_service.py` — lapisan provider.
+- `services/document_service.py` — validasi upload, ekstraksi, chunking,
+  embedding, penyimpanan, pencarian kemiripan.
+- `tests/test_document_service.py` — 14 test, semuanya lulus.
+
+**Hasil pengujian**
+
+| Yang diuji | Hasil |
+|------------|-------|
+| `GET /health` | `status: ok`, database `true`, extension vector `true` |
+| Skema tabel | Cocok dengan PRD §7, kolom `embedding vector(768)` |
+| Upload `.txt` | 1 chunk tersimpan |
+| Upload `.pdf` | Teks terekstraksi, 1 chunk tersimpan |
+| Upload `.md` panjang | Terpotong menjadi 8 chunk |
+| Unggah ulang nama sama | Tetap 8 chunk — isi lama diganti, tidak menumpuk |
+| Upload `.png` sah | `status: stored`, menunggu OCR Fase 5 |
+| Upload `.exe` | Ditolak 400 — ekstensi di luar allowlist |
+| PNG dinamai `.pdf` | Ditolak 400 — signature tidak cocok |
+| PNG rusak | Ditolak 400 — MIME `application/octet-stream` |
+| `POST /query` | Dokumen yang benar selalu peringkat 1 pada 3 pertanyaan uji |
+| `POST /chat` tanpa key | 503 dengan pesan yang menyebut langkah perbaikannya |
+| `GET /chat/history` | Urut dari pesan terlama, `session_id` kosong ditolak 422 |
+| User `rag_readonly` | `SELECT` berhasil; `DELETE` dan `CREATE TABLE` ditolak |
+
+**Keputusan baru** (detail di `docs/tech-decisions.md`):
+- **D-06** Provider LLM dan embedding dapat ditukar lewat `.env`. Selama model
+  lokal ditunda, LLM memakai Atria Dawn Preview (OpenAI-compatible, mendukung
+  tool calling). Kembali ke Ollama di Fase 3 cukup mengubah dua baris `.env`.
+- **D-07** `hash_stub` — embedding deterministik tanpa model, agar pipeline RAG
+  bisa diuji sekarang. Tidak mewakili mutu retrieval sebenarnya.
+- **D-08** Index HNSW jarak cosine pada `documents.embedding`.
+- **D-09** Nama berkas unggahan diganti UUID; nama asli disimpan di database.
+
+**Blocker:** tidak ada, tetapi ada dua hal yang masih menunggu:
+
+1. `LLM_API_KEY` di `.env` masih kosong, sehingga `POST /chat` belum pernah
+   menghasilkan jawaban sungguhan. Jalur retrieval-nya sendiri sudah terbukti
+   lewat `POST /query`. Setelah key diisi: `docker compose restart backend`.
+2. Embedding masih memakai `hash_stub`. Mutu retrieval yang sebenarnya baru
+   bisa dinilai setelah `nomic-embed-text` tersedia di Fase 3.
+
+**Catatan yang perlu diingat.** Dokumen yang sudah terlanjur diindeks dengan
+`hash_stub` **wajib diunggah ulang** setelah pindah ke model embedding
+sungguhan. Vektor dari dua model berbeda tidak sebanding, dan gejalanya
+menipu: pencarian tetap mengembalikan hasil, hanya saja hasilnya acak.
+Kolom `documents.metadata` menyimpan `embedding_model` untuk tiap potongan,
+jadi baris lama bisa dikenali dengan:
+
+```sql
+SELECT DISTINCT filename, metadata->>'embedding_model' FROM documents;
+```
 
 ---
 

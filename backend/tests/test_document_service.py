@@ -1,0 +1,77 @@
+"""Uji bagian pipeline dokumen yang tidak memerlukan database."""
+
+import pytest
+
+from backend.config import settings
+from backend.services import document_service as ds
+from backend.services.embedding_service import HashStubEmbedding
+
+PDF_HEAD = b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n"
+PNG_HEAD = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
+
+
+class TestValidateUpload:
+    def test_menerima_teks_biasa(self):
+        assert ds.validate_upload("catatan.txt", b"halo dunia") == ".txt"
+
+    def test_menolak_ekstensi_di_luar_allowlist(self):
+        with pytest.raises(ds.UploadValidationError, match="tidak diizinkan"):
+            ds.validate_upload("skrip.exe", b"MZ\x90\x00")
+
+    def test_menolak_berkas_kosong(self):
+        with pytest.raises(ds.UploadValidationError, match="kosong"):
+            ds.validate_upload("kosong.txt", b"")
+
+    def test_menolak_ekstensi_yang_dipalsukan(self):
+        """Berkas PNG yang dinamai .pdf harus tertangkap lewat signature."""
+        with pytest.raises(ds.UploadValidationError):
+            ds.validate_upload("gambar.pdf", PNG_HEAD)
+
+    def test_menerima_pdf_yang_sah(self):
+        assert ds.validate_upload("dokumen.pdf", PDF_HEAD) == ".pdf"
+
+    def test_menolak_riff_yang_bukan_webp(self):
+        wav = b"RIFF\x24\x00\x00\x00WAVEfmt "
+        with pytest.raises(ds.UploadValidationError, match="bukan gambar WEBP"):
+            ds.validate_upload("suara.webp", wav)
+
+    def test_ekstensi_huruf_besar_tetap_diterima(self):
+        assert ds.validate_upload("LAPORAN.PDF", PDF_HEAD) == ".pdf"
+
+
+class TestCleanAndChunk:
+    def test_membuang_spasi_dan_baris_berlebih(self):
+        assert ds.clean_text("halo   dunia\n\n\n\nlagi") == "halo dunia\n\nlagi"
+
+    def test_potongan_tidak_melebihi_chunk_size(self):
+        chunks = ds.chunk_text("kalimat panjang. " * 400)
+        assert len(chunks) > 1
+        assert all(len(chunk) <= settings.chunk_size for chunk in chunks)
+
+    def test_teks_pendek_menjadi_satu_potongan(self):
+        assert ds.chunk_text("cuma satu baris") == ["cuma satu baris"]
+
+
+class TestHashStubEmbedding:
+    def test_dimensi_sesuai_konfigurasi(self):
+        vector = HashStubEmbedding()._embed_sync("uji dimensi")
+        assert len(vector) == settings.embedding_dim
+
+    def test_deterministik(self):
+        backend = HashStubEmbedding()
+        assert backend._embed_sync("teks sama") == backend._embed_sync("teks sama")
+
+    def test_vektor_dinormalisasi(self):
+        vector = HashStubEmbedding()._embed_sync("panjang vektor harus satu")
+        assert abs(sum(value * value for value in vector) - 1.0) < 1e-9
+
+    def test_teks_mirip_lebih_dekat_daripada_teks_berbeda(self):
+        backend = HashStubEmbedding()
+        acuan = backend._embed_sync("masa retensi dokumen kepegawaian")
+        mirip = backend._embed_sync("berapa lama masa retensi dokumen")
+        beda = backend._embed_sync("resep rendang daging sapi")
+
+        def cosine(a, b):
+            return sum(x * y for x, y in zip(a, b))
+
+        assert cosine(acuan, mirip) > cosine(acuan, beda)

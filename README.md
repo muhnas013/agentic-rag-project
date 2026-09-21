@@ -36,6 +36,7 @@ FastAPI  →  Agent Orchestrator (LangChain)
 | Backend   | Python 3.12, FastAPI, Uvicorn, SQLAlchemy      |
 | Agent     | LangChain                                      |
 | LLM       | Ollama — `qwen2.5:7b-instruct-q4_K_M`          |
+| LLM (sementara) | Atria Dawn Preview lewat API, selama model lokal belum diunduh |
 | Embedding | Ollama — `nomic-embed-text` (768 dimensi)      |
 | OCR       | PaddleOCR                                      |
 | Database  | PostgreSQL 16 + pgvector                       |
@@ -47,8 +48,15 @@ Alasan tiap pilihan: [`docs/tech-decisions.md`](./docs/tech-decisions.md).
 ```
 praktek-ai-engineer/
 ├── backend/            # FastAPI, agent, tools, services
-│   ├── tools/          # rag_tool, ocr_tool, sql_tool
-│   └── services/       # embedding, document, llm
+│   ├── main.py         # endpoint REST
+│   ├── config.py       # seluruh setting dibaca dari .env
+│   ├── database.py     # dua engine: aplikasi dan SQL Agent read-only
+│   ├── models.py       # tabel chat_history dan documents
+│   ├── schemas.py      # skema request/response
+│   ├── tools/          # rag_tool, ocr_tool, sql_tool (Fase 4-5)
+│   ├── services/       # embedding, document, llm
+│   └── tests/
+├── docker/postgres/init/   # extension vector + user read-only
 ├── frontend/           # Vite + React chat UI
 ├── storage/
 │   ├── uploads/        # file mentah dari user
@@ -76,14 +84,64 @@ Keduanya residen bersamaan di VRAM saat RAG berjalan: ±5,5 GB dari 8 GB.
 
 ## Cara menjalankan
 
-> Backend dan database berjalan di Docker; Ollama berjalan di host.
-> Instruksi lengkap ditambahkan seiring tiap fase selesai.
+Backend dan database berjalan di Docker; Ollama nanti berjalan di host.
 
 ```bash
 cp .env.example .env    # lalu sesuaikan kredensial
+docker compose up -d    # PostgreSQL + backend
+curl localhost:8000/health
 ```
 
-Langkah berikutnya menyusul pada Fase 2 (backend + database).
+Dokumentasi API interaktif: <http://localhost:8000/docs>.
+
+Perintah yang sering dipakai:
+
+```bash
+docker compose logs -f backend          # ikuti log
+docker compose restart backend          # muat ulang setelah .env berubah
+docker compose exec -w /app backend python -m pytest backend/tests -q
+docker compose down                     # berhenti (data tetap tersimpan)
+docker compose down -v                  # berhenti dan HAPUS isi database
+```
+
+Kode di `./backend` di-mount sebagai volume, jadi perubahan kode langsung
+dimuat ulang tanpa perlu build ulang. Perubahan `.env` dan `requirements.txt`
+tetap memerlukan `restart` atau `build`.
+
+### Endpoint yang sudah ada
+
+| Method | Path            | Keterangan                                   |
+|--------|-----------------|----------------------------------------------|
+| GET    | `/health`       | Status database, extension vector, dan model |
+| POST   | `/upload`       | Unggah `.pdf` `.txt` `.md` lalu diolah jadi embedding; gambar hanya disimpan sampai Fase 5 |
+| POST   | `/documents`    | Tambah dokumen dari teks langsung            |
+| GET    | `/documents`    | Daftar dokumen terindeks + jumlah potongan   |
+| POST   | `/query`        | Pencarian RAG mentah, tanpa LLM              |
+| POST   | `/chat`         | Jawaban berbasis dokumen                     |
+| GET    | `/chat/history` | Riwayat percakapan satu sesi                 |
+
+`/query` sengaja dipisah dari `/chat`: bila jawaban keliru, endpoint itu
+menunjukkan apakah penyebabnya ada pada pencarian atau pada model.
+
+### Provider model
+
+Target akhirnya Ollama sesuai PRD. Selama model lokal belum diunduh, LLM
+dilayani API yang OpenAI-compatible, diatur lewat `.env`:
+
+```
+LLM_PROVIDER=openai_compatible      # ollama | openai_compatible
+EMBEDDING_PROVIDER=hash_stub        # ollama | openai_compatible | hash_stub
+LLM_API_KEY=atr_...                 # isi di sini
+```
+
+`hash_stub` adalah embedding tanpa model, khusus pengembangan: cukup untuk
+menguji pipeline RAG, **tidak** untuk menilai mutu retrieval. Beralih ke
+Ollama pada Fase 3 cukup mengubah dua variabel pertama menjadi `ollama`.
+
+> **Penting.** Dokumen yang diindeks dengan satu model embedding harus
+> diunggah ulang setelah berganti model. Vektor dua model berbeda tidak
+> sebanding, dan pencarian tetap mengembalikan hasil — hanya saja hasilnya
+> acak, sehingga kesalahan ini tidak terlihat kecuali sengaja diuji.
 
 ## Keamanan
 

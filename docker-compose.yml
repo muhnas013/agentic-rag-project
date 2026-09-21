@@ -1,0 +1,58 @@
+# Infrastruktur pengembangan Agentic RAG (PRD §22).
+# PostgreSQL + pgvector dan backend FastAPI berjalan di Docker.
+# Ollama berjalan di host, diakses lewat host.docker.internal (keputusan D-03).
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agentic-rag-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      # Dipakai oleh skrip init untuk membuat user read-only SQL Agent (PRD §18).
+      SQL_AGENT_DB_USER: ${SQL_AGENT_DB_USER}
+      SQL_AGENT_DB_PASSWORD: ${SQL_AGENT_DB_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Skrip di bawah hanya dijalankan saat volume masih kosong.
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: agentic-rag-backend
+    restart: unless-stopped
+    ports:
+      - "${API_PORT}:8000"
+    env_file:
+      - .env
+    environment:
+      # .env ditulis dari sudut pandang host; di dalam jaringan Compose
+      # database dipanggil lewat nama service dan Ollama lewat host.
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SQL_AGENT_DATABASE_URL: postgresql+psycopg://${SQL_AGENT_DB_USER}:${SQL_AGENT_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      UPLOAD_DIR: /app/storage/uploads
+      PROCESSED_DIR: /app/storage/processed
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      # Mount kode sumber agar hot-reload Uvicorn bekerja (keputusan D-01).
+      - ./backend:/app/backend:ro
+      - ./storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

@@ -182,3 +182,8 @@ Risiko yang diterima dan mitigasinya:
   **Perlu dicek ulang saat Fase 7.**
 
 Blocker: tidak ada. Ollama belum terpasang — pengunduhan model dilakukan di Fase 3.
+
+---
+
+**Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan
+langkah berikutnya ada di `docs/handoff.md`.

@@ -7,6 +7,7 @@ dokumen (RAG), membaca teks dari gambar (OCR), atau mengambil data terstruktur
 
 Spesifikasi lengkap ada di [`prd.md`](./prd.md).
 Progres pengerjaan dicatat di [`checklist-progres.md`](./checklist-progres.md).
+Untuk menyambung pengerjaan, baca [`docs/handoff.md`](./docs/handoff.md).
 
 ## Arsitektur singkat
 

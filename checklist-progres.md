@@ -1,8 +1,8 @@
 # Checklist Progres Pengerjaan Project Agentic RAG
 
 ## Status umum
-- [ ] Project mulai didefinisikan
-- [ ] PRD dibaca dan dipahami
+- [x] Project mulai didefinisikan
+- [x] PRD dibaca dan dipahami
 - [ ] Roadmap kerja dibuat
 - [ ] Infrastruktur dasar disiapkan
 - [ ] Backend utama berjalan
@@ -18,11 +18,11 @@
 - [ ] Project siap demo / presentasi
 
 ## Fase 1: Persiapan & Foundation
-- [ ] Review PRD dan scope project
-- [ ] Tentukan teknologi yang dipakai
-- [ ] Siapkan struktur folder project
-- [ ] Buat file environment/config dasar
-- [ ] Siapkan repository dan dokumentasi awal
+- [x] Review PRD dan scope project
+- [x] Tentukan teknologi yang dipakai
+- [x] Siapkan struktur folder project
+- [x] Buat file environment/config dasar
+- [x] Siapkan repository dan dokumentasi awal
 
 ## Fase 2: Backend Core
 - [ ] Setup FastAPI project
@@ -102,3 +102,34 @@ Contoh:
 - Fokus utama saat ini: membangun MVP RAG yang berjalan terlebih dahulu.
 - Setelah core flow stabil, baru menambahkan OCR, SQL, dan frontend yang lebih lengkap.
 - Jika terjadi blocker, tulis di bagian catatan dan prioritas ulang.
+
+## Log pengerjaan
+
+### Fase 1 — Persiapan & Foundation · selesai (21 Sep 2026)
+
+Hasil:
+- Struktur folder dibuat sesuai PRD §6: `backend/{tools,services}/`,
+  `frontend/src/{components,services}/`, `storage/{uploads,processed}/`, `docs/`.
+- `.env.example` dan `.env` berisi konfigurasi database, Ollama, RAG, batas
+  upload, dan security (JWT, allowlist tabel SQL Agent, query timeout).
+- `.gitignore` memblokir `.env`, isi `storage/`, `node_modules/`, dan cache Python.
+- `README.md` — ringkasan arsitektur, stack, struktur, dan catatan keamanan.
+- `docs/tech-decisions.md` — teknologi terpilih beserta alasan dan hasil
+  pemeriksaan mesin.
+- Repository Git diinisialisasi, commit pertama dibuat.
+  Diverifikasi: `.env` tidak ikut tertrack.
+
+Pemeriksaan mesin: 24 core, RAM 15 GB, RTX 4060 8 GB, Docker 29.7.2 +
+Compose 5.4.0, Node 26.7.0, psql client 18.4.
+
+Keputusan yang menyimpang dari PRD (detail di `docs/tech-decisions.md`):
+- **D-01** Backend berjalan di container `python:3.12-slim`. Host hanya punya
+  Python 3.14.7, sedangkan `paddlepaddle` belum merilis wheel untuk versi itu.
+- **D-02** Model LLM `llama3.1:8b` (PRD mencontohkan `llama3`), dipilih agar
+  muat di VRAM 8 GB.
+
+Blocker: tidak ada.
+
+Belum dikerjakan (masuk fase berikutnya):
+- Ollama belum terpasang di mesin → Fase 3.
+- `docker-compose.yml` dan `backend/requirements.txt` → Fase 2.

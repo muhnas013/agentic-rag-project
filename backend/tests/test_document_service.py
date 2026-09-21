@@ -75,3 +75,35 @@ class TestHashStubEmbedding:
             return sum(x * y for x, y in zip(a, b))
 
         assert cosine(acuan, mirip) > cosine(acuan, beda)
+
+
+def _chunk(score: float) -> ds.RetrievedChunk:
+    return ds.RetrievedChunk(
+        id=int(score * 1000), filename="uji.txt", content="isi", score=score, metadata={}
+    )
+
+
+class TestFilterRelevant:
+    def test_membuang_potongan_berskor_nol(self):
+        chunks = [_chunk(0.8), _chunk(0.5), _chunk(0.0)]
+        assert [c.score for c in ds.filter_relevant(chunks, 0.5)] == [0.8, 0.5]
+
+    def test_membuang_yang_jauh_di_bawah_terbaik(self):
+        chunks = [_chunk(0.8), _chunk(0.1)]
+        assert [c.score for c in ds.filter_relevant(chunks, 0.5)] == [0.8]
+
+    def test_potongan_terbaik_selalu_dipertahankan(self):
+        """Penyaringan tidak boleh mengosongkan konteks, sekecil apa pun skornya."""
+        assert len(ds.filter_relevant([_chunk(0.01)], 0.5)) == 1
+
+    def test_rasio_nol_mematikan_penyaringan(self):
+        chunks = [_chunk(0.8), _chunk(0.0)]
+        assert len(ds.filter_relevant(chunks, 0.0)) == 2
+
+    def test_daftar_kosong_aman(self):
+        assert ds.filter_relevant([], 0.5) == []
+
+    def test_skor_setara_tetap_dipakai_semua(self):
+        """Pertanyaan yang jawabannya tersebar di beberapa dokumen."""
+        chunks = [_chunk(0.6), _chunk(0.55), _chunk(0.5)]
+        assert len(ds.filter_relevant(chunks, 0.5)) == 3

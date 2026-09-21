@@ -7,14 +7,20 @@ menyambung tanpa mengulang pembahasan.
 
 ## Posisi saat ini
 
-**Fase 1 dan Fase 2 selesai. Berikutnya: Fase 3 — Integrasi LLM Lokal.**
+**Fase 1 dan Fase 2 selesai. Fase 3 selesai sebagian — semua item yang
+tidak memerlukan unduhan model sudah dikerjakan dan terbukti.
+Berikutnya: Fase 4 — Agent Orchestrator.**
 
 Rincian tiap item ada di `checklist-progres.md` pada section "Log pengerjaan".
 Itu sumber kebenaran status, bukan dokumen ini.
 
 Yang sudah berjalan dan terbukti: PostgreSQL + pgvector, tujuh endpoint
 FastAPI, validasi upload, pipeline dokumen sampai tersimpan sebagai vektor,
-dan pencarian kemiripan. Yang belum terbukti: penyusunan jawaban oleh LLM.
+pencarian kemiripan, penyusunan jawaban oleh LLM, pertahanan prompt injection,
+dan **tool calling (4 dari 4 tepat)** — sehingga Fase 4 tidak lagi berisiko.
+
+Yang belum terbukti: jalur Ollama (kodenya ada, belum pernah dieksekusi) dan
+mutu retrieval yang sebenarnya, karena embedding masih `hash_stub`.
 
 ## Yang sudah ada di repo
 
@@ -39,25 +45,15 @@ praktek-ai-engineer/
 
 Git ada di branch `main`, belum ada remote.
 
-## Dua hal yang menunggu diselesaikan
+## Satu hal yang masih menunggu: embedding masih `hash_stub`
 
-### 1. `LLM_API_KEY` masih kosong
-
-`POST /chat` mengembalikan 503 sampai key diisi. Jalur retrieval-nya sendiri
-sudah terbukti lewat `POST /query`, jadi yang belum teruji hanya bagian
-penyusunan jawaban.
-
-```bash
-# isi LLM_API_KEY=atr_... di .env, lalu:
-docker compose restart backend
-curl -X POST localhost:8000/chat -H 'Content-Type: application/json' \
-  -d '{"session_id":"uji","message":"berapa lama masa retensi dokumen keuangan"}'
-```
-
-### 2. Embedding masih memakai `hash_stub`
+`LLM_API_KEY` sudah diisi dan terbukti bekerja — `POST /chat` menghasilkan
+jawaban benar beserta sumbernya. Yang tersisa adalah embedding.
 
 `hash_stub` hanya mencocokkan kata, bukan makna. Pipeline RAG terbukti benar,
-tetapi mutu retrieval belum bisa dinilai sama sekali.
+tetapi mutu retrieval belum bisa dinilai sama sekali. Dokumen uji sengaja
+dibuat berbeda topik agar pencarian berbasis kata pun cukup memisahkannya;
+pada dokumen nyata yang bertopik mirip, `hash_stub` akan sering keliru.
 
 **Dokumen yang sudah diindeks wajib diunggah ulang setelah berganti ke model
 embedding sungguhan.** Vektor dari dua model berbeda tidak sebanding, dan
@@ -68,21 +64,46 @@ acak. Baris lama bisa dikenali lewat metadata:
 SELECT DISTINCT filename, metadata->>'embedding_model' FROM documents;
 ```
 
-## Langkah berikutnya — Fase 3: Integrasi LLM Lokal
+## Cara memuat ulang konfigurasi — jangan pakai `restart`
+
+`docker compose restart` memakai ulang environment yang dibekukan saat
+container dibuat, sehingga perubahan `.env` **tidak** terbaca. Gejalanya
+membingungkan: `.env` sudah benar tetapi aplikasi bersikeras nilainya kosong.
+
+```bash
+docker compose up -d backend    # benar — container dibuat ulang
+docker compose restart backend  # TIDAK membaca ulang .env
+```
+
+## Langkah berikutnya — Fase 4: Agent Orchestrator
 
 Sesuai `checklist-progres.md`:
+
+1. Pilih framework agent — PRD §4.2 menyebut LangChain
+2. Definisikan tool `RAG_Search`, `Image_OCR`, `SQL_Query` (PRD §14)
+3. Agent memilih tool sendiri berdasarkan pertanyaan
+4. Uji routing tool, lalu uji alur multi-tool
+
+Sudah terbukti pada Fase 3: provider LLM memilih tool yang tepat pada empat
+kasus uji dan mengisi argumennya dengan benar, termasuk tahu kapan tidak perlu
+tool sama sekali. `llm_service.chat()` sudah menerima parameter `tools` dan
+menyeragamkan `tool_calls` dari kedua provider, jadi pondasinya siap.
+
+Catatan: `Image_OCR` baru bisa benar-benar berjalan setelah PaddleOCR dipasang
+di Fase 5, dan `SQL_Query` memakai koneksi read-only yang sudah disiapkan pada
+Fase 2. Pada Fase 4 keduanya bisa dibuat sebagai tool yang mengembalikan pesan
+"belum tersedia", supaya routing-nya tetap dapat diuji lebih dulu.
+
+### Menyelesaikan sisa Fase 3 (kapan pun Ollama dipasang)
 
 1. Pasang Ollama di host
 2. `ollama pull qwen2.5:7b-instruct-q4_K_M` (4,7 GB)
    dan `ollama pull nomic-embed-text` (274 MB)
 3. Ubah `.env`: `LLM_PROVIDER=ollama`, `EMBEDDING_PROVIDER=ollama`
-4. `docker compose restart backend`, lalu cek `GET /health`
+4. `docker compose up -d backend`, lalu cek `GET /health`
 5. Unggah ulang seluruh dokumen (lihat peringatan di atas)
-6. Uji prompt dasar, lalu uji RAG + LLM menghasilkan jawaban
-7. Perbaiki prompt bila jawabannya belum memuaskan
-
-Kode sudah siap menerima Ollama — lapisan provider (keputusan D-06) hanya
-perlu diarahkan ulang, tidak ada yang perlu ditulis ulang.
+6. Bandingkan hasil `POST /query` dengan catatan Fase 3 untuk menilai
+   seberapa besar `hash_stub` menyesatkan
 
 ## Keputusan yang sudah diambil
 
@@ -98,6 +119,7 @@ perlu diarahkan ulang, tidak ada yang perlu ditulis ulang.
 | D-07 | `hash_stub` embedding pengembangan | Pipeline RAG bisa diuji tanpa model apa pun |
 | D-08 | Index HNSW jarak cosine | Tidak perlu dibangun ulang saat data bertambah |
 | D-09 | Nama berkas unggahan diganti UUID | Menutup path traversal dan tabrakan nama |
+| D-10 | Ambang relevansi relatif, bukan angka mati | Rentang skor tiap model embedding berbeda |
 
 ## Hal yang perlu diwaspadai
 

@@ -185,3 +185,28 @@ nama aslinya disimpan di kolom `documents.filename` dan metadata.
 
 Alasannya dua: nama seperti `../../etc/passwd` menjadi tidak berbahaya, dan
 dua pengguna yang mengunggah `laporan.pdf` tidak saling menimpa berkas.
+
+### D-10 — Ambang relevansi retrieval ditetapkan relatif, bukan angka mati
+
+**Masalah.** Pencarian kemiripan selalu mengembalikan sebanyak `RAG_TOP_K`
+baris, tanpa peduli apakah barisnya nyambung dengan pertanyaan. Pada pengujian
+Fase 3, dua dari empat potongan yang terkirim ke LLM berskor 0,0 — sama sekali
+tidak relevan. Potongan seperti itu memakan jatah konteks yang terbatas
+(8K token, keputusan D-02) dan berpotensi mengalihkan perhatian model.
+
+**Keputusan.** `filter_relevant()` membuang potongan yang skornya di bawah
+`RAG_MIN_SCORE_RATIO` dikali skor potongan terbaik. Nilai bawaannya `0.5`.
+
+Ambang **relatif**, bukan angka mutlak, karena setiap model embedding punya
+rentang skor sendiri. Pada `hash_stub` potongan yang benar berskor sekitar
+0,28; pada `nomic-embed-text` angka sejenis biasanya 0,6 ke atas. Ambang
+mutlak yang pas untuk satu model akan membuang seluruh hasil pada model lain —
+dan gagalnya diam-diam: sistem menjawab "informasi tidak ada di dokumen"
+padahal dokumennya ada.
+
+Potongan teratas selalu dipertahankan, sehingga penyaringan ini tidak pernah
+mengosongkan konteks. Isi `RAG_MIN_SCORE_RATIO=0` untuk mematikannya.
+
+**Konsekuensi.** `POST /chat` menyaring, `POST /query` tidak. Perbedaan itu
+disengaja: `/query` adalah endpoint diagnostik, gunanya justru memperlihatkan
+apa yang sebenarnya dikembalikan pencarian sebelum disaring.

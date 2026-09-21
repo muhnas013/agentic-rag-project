@@ -98,7 +98,8 @@ Perintah yang sering dipakai:
 
 ```bash
 docker compose logs -f backend          # ikuti log
-docker compose restart backend          # muat ulang setelah .env berubah
+docker compose up -d backend            # muat ulang setelah .env berubah
+                                        # (restart TIDAK membaca ulang .env)
 docker compose exec -w /app backend python -m pytest backend/tests -q
 docker compose down                     # berhenti (data tetap tersimpan)
 docker compose down -v                  # berhenti dan HAPUS isi database

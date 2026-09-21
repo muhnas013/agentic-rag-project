@@ -284,6 +284,42 @@ async def ingest_document(
     return len(chunks)
 
 
+def filter_relevant(
+    chunks: list[RetrievedChunk],
+    min_score_ratio: float | None = None,
+) -> list[RetrievedChunk]:
+    """Buang potongan yang jauh kalah relevan dibanding potongan terbaik.
+
+    Pencarian kemiripan selalu mengembalikan sebanyak `top_k` baris, termasuk
+    yang sama sekali tidak nyambung — pada uji Fase 3 ada potongan berskor 0
+    yang tetap ikut terkirim. Potongan begitu memakan jatah konteks dan bisa
+    mengalihkan perhatian model.
+
+    Ambangnya relatif terhadap skor tertinggi, bukan angka mati, karena tiap
+    model embedding punya rentang skor sendiri: ambang yang pas untuk satu
+    model akan membuang semua hasil pada model lain. Potongan teratas selalu
+    dipertahankan agar penyaringan ini tidak pernah mengosongkan konteks.
+    """
+    if not chunks:
+        return []
+
+    ratio = settings.rag_min_score_ratio if min_score_ratio is None else min_score_ratio
+    if ratio <= 0:
+        return chunks
+
+    ambang = chunks[0].score * ratio
+    disaring = [chunks[0]] + [
+        chunk for chunk in chunks[1:] if chunk.score > 0 and chunk.score >= ambang
+    ]
+
+    if len(disaring) < len(chunks):
+        logger.info(
+            "Retrieval: %d dari %d potongan dipakai (ambang skor %.4f).",
+            len(disaring), len(chunks), ambang,
+        )
+    return disaring
+
+
 async def search_similar_chunks(
     db: Session,
     query: str,

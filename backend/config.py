@@ -96,6 +96,7 @@ class Settings(BaseSettings):
     chunk_size: int = 800
     chunk_overlap: int = 120
     rag_top_k: int = 4
+    rag_min_score_ratio: float = 0.5
 
     # --- Upload ---
     upload_dir: Path = PROJECT_ROOT / "storage" / "uploads"

@@ -306,6 +306,11 @@ async def chat_endpoint(
     except EmbeddingError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
 
+    # Potongan yang jauh kalah relevan dibuang sebelum masuk konteks.
+    # /query sengaja tidak menyaring, agar tetap bisa dipakai memeriksa
+    # apa yang sebenarnya dikembalikan pencarian.
+    chunks = document_service.filter_relevant(chunks)
+
     context = "\n\n".join(
         f"[sumber: {chunk.filename} #bagian-{chunk.metadata.get('chunk_index', 0)}]\n"
         f"{chunk.content}"

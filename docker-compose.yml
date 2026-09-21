@@ -41,11 +41,9 @@ services:
       POSTGRES_PORT: 5432
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SQL_AGENT_DATABASE_URL: postgresql+psycopg://${SQL_AGENT_DB_USER}:${SQL_AGENT_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
+      OLLAMA_BASE_URL: http://172.28.0.1:11434
       UPLOAD_DIR: /app/storage/uploads
       PROCESSED_DIR: /app/storage/processed
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     volumes:
       # Mount kode sumber agar hot-reload Uvicorn bekerja (keputusan D-01).
       - ./backend:/app/backend:ro
@@ -56,3 +54,10 @@ services:
 
 volumes:
   postgres_data:
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+          gateway: 172.28.0.1

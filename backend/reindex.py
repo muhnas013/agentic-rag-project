@@ -10,8 +10,9 @@ Berkas asli tetap tersimpan di storage/uploads, jadi tidak perlu meminta
 pengguna mengunggah ulang apa pun.
 
 Jalankan:
-    docker compose exec -w /app backend python -m backend.reindex          # periksa saja
-    docker compose exec -w /app backend python -m backend.reindex --jalan  # kerjakan
+    docker compose exec -w /app backend python -m backend.reindex            # periksa saja
+    docker compose exec -w /app backend python -m backend.reindex --jalan    # kerjakan
+    docker compose exec -w /app backend python -m backend.reindex --jalan --paksa
 """
 
 from __future__ import annotations
@@ -56,6 +57,13 @@ async def main() -> int:
         "--jalan", action="store_true",
         help="benar-benar lakukan embedding ulang (tanpa ini hanya memeriksa)",
     )
+    parser.add_argument(
+        "--paksa", action="store_true",
+        help="olah ulang semua dokumen walau modelnya sudah cocok. Diperlukan "
+             "ketika yang berubah bukan model embedding melainkan cara dokumen "
+             "diolah — misalnya penandaan prompt injection yang baru ditambahkan, "
+             "yang hanya tertulis saat dokumen diolah ulang.",
+    )
     args = parser.parse_args()
 
     db = SessionLocal()
@@ -77,12 +85,16 @@ async def main() -> int:
             ada = bool(berkas and berkas.exists())
             sama = info["model"] == model_aktif
 
-            tanda = "sudah cocok" if sama else f"pakai '{info['model']}'"
+            if sama:
+                tanda = "dipaksa ulang" if args.paksa else "sudah cocok"
+            else:
+                tanda = f"pakai '{info['model']}'"
+            butuh = args.paksa or not sama
             if not ada:
                 tanda += "  [BERKAS ASLI HILANG]"
-                if not sama:
+                if butuh:
                     hilang.append(nama)
-            elif not sama:
+            elif butuh:
                 perlu.append((nama, info))
 
             print(f"  {nama:<28} {info['potongan']:>3} potongan   {tanda}")
@@ -97,7 +109,7 @@ async def main() -> int:
             print("\nTidak ada yang perlu dikerjakan.")
             return 0
 
-        print(f"\n{len(perlu)} dokumen perlu embedding ulang.")
+        print(f"\n{len(perlu)} dokumen perlu diolah ulang.")
         if not args.jalan:
             print("Jalankan lagi dengan --jalan untuk mengerjakannya.")
             return 0

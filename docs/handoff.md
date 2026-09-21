@@ -133,6 +133,7 @@ privileges, jadi tidak perlu grant manual.
 | D-10 | Ambang relevansi relatif, bukan angka mati | Rentang skor tiap model embedding berbeda |
 | D-11 | Agent pakai LangChain; satu jalur LLM saja | Dua implementasi untuk satu tujuan mudah jadi tidak sinkron |
 | D-12 | Nama berkas `<uuid>__<nama-asli>` | Tanpa ini gambar tidak pernah bisa dijangkau Image_OCR |
+| D-13 | Model kecil dipertahankan; pertahanan di kode | Model terbukti tidak bisa diandalkan menolak sendiri |
 
 ## Hal yang perlu diwaspadai
 

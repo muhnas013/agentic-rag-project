@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from backend.config import settings
@@ -191,6 +191,40 @@ def save_upload(source: BinaryIO, filename: str) -> tuple[Path, int]:
 
 
 # --------------------------------------------------------------------------
+# Deteksi prompt injection (PRD §18)
+# --------------------------------------------------------------------------
+
+# Pola perintah yang berusaha mengambil alih peran model. Dicocokkan saat
+# dokumen masuk, bukan saat pencarian: pemindaian cukup sekali per dokumen,
+# dan hasilnya tersimpan sehingga tiap pencarian tidak perlu mengulanginya.
+POLA_INJEKSI: tuple[tuple[str, str], ...] = (
+    (r"abaikan\s+(semua\s+)?(instruksi|perintah|aturan)", "abaikan instruksi"),
+    (r"ignore\s+(all\s+)?(previous|prior|above)\s+(instructions?|prompts?)", "ignore instructions"),
+    (r"(kamu|anda)\s+sekarang\s+(adalah|menjadi)", "penggantian peran"),
+    (r"you\s+are\s+now\s+(a|an)\b", "role override"),
+    (r"lupakan\s+(semua\s+)?(instruksi|aturan|peran)", "lupakan instruksi"),
+    (r"jawab\s+setiap\s+pertanyaan\s+dengan", "paksa jawaban tetap"),
+    (r"(tuliskan|tampilkan|bocorkan)\s+(ulang\s+)?(seluruh\s+)?(instruksi|prompt)\s+sistem", "minta bocorkan prompt"),
+    (r"(reveal|print|repeat)\s+(your\s+)?(system\s+)?(prompt|instructions)", "reveal prompt"),
+    (r"disregard\s+(all\s+)?(previous|prior)", "disregard"),
+)
+
+_POLA_TERKOMPILASI = tuple(
+    (re.compile(pola, re.IGNORECASE), label) for pola, label in POLA_INJEKSI
+)
+
+
+def detect_injection(text: str) -> list[str]:
+    """Kembalikan label pola pengambilalihan yang ditemukan di teks.
+
+    Ini lapisan pertahanan, bukan jaminan — pola baru selalu bisa disusun.
+    Gunanya menaikkan ambang serangan yang sudah dikenal, sejalan dengan
+    cara SQL Tool memvalidasi query alih-alih memercayai model.
+    """
+    return [label for pola, label in _POLA_TERKOMPILASI if pola.search(text)]
+
+
+# --------------------------------------------------------------------------
 # Ekstraksi teks dan chunking (PRD §9)
 # --------------------------------------------------------------------------
 
@@ -270,6 +304,18 @@ async def ingest_document(
     if not chunks:
         raise DocumentProcessingError("Teks gagal dipotong menjadi chunk.")
 
+    # Dokumen dipindai sekali di sini. Potongan yang memuat pola
+    # pengambilalihan ditandai, lalu disingkirkan dari hasil pencarian
+    # (lihat search_similar_chunks) sehingga tidak pernah sampai ke model.
+    flags_per_chunk = [detect_injection(chunk) for chunk in chunks]
+    tertandai = sum(1 for f in flags_per_chunk if f)
+    if tertandai:
+        logger.warning(
+            "Dokumen '%s': %d dari %d potongan memuat pola prompt injection %s",
+            original_filename, tertandai, len(chunks),
+            sorted({l for f in flags_per_chunk for l in f}),
+        )
+
     vectors = await embed_texts(chunks)
 
     # Unggahan ulang dengan nama sama menggantikan isi lama, bukan
@@ -288,9 +334,12 @@ async def ingest_document(
                     "source_path": str(stored_path),
                     "extension": extension,
                     "embedding_model": settings.embedding_model_name,
+                    "injection_flags": flags,
                 },
             )
-            for index, (chunk, vector) in enumerate(zip(chunks, vectors))
+            for index, (chunk, vector, flags) in enumerate(
+                zip(chunks, vectors, flags_per_chunk)
+            )
         ]
     )
     db.commit()
@@ -349,9 +398,21 @@ async def search_similar_chunks(
     query_vector = await embed_query(query)
 
     distance = Document.embedding.cosine_distance(query_vector).label("distance")
+    kondisi = [Document.embedding.is_not(None)]
+
+    if settings.rag_quarantine_suspicious:
+        # Potongan yang ditandai saat masuk tidak pernah ikut hasil pencarian.
+        # Penyaringan dilakukan di SQL, bukan setelahnya, supaya potongan
+        # bersih berikutnya naik mengisi kuota top_k.
+        kondisi.append(
+            func.coalesce(
+                func.jsonb_array_length(Document.doc_metadata["injection_flags"]), 0
+            ) == 0
+        )
+
     rows = db.execute(
         select(Document, distance)
-        .where(Document.embedding.is_not(None))
+        .where(*kondisi)
         .order_by(distance)
         .limit(limit)
     ).all()

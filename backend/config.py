@@ -102,6 +102,10 @@ class Settings(BaseSettings):
     rag_top_k: int = 4
     rag_min_score_ratio: float = 0.5
 
+    # Potongan dokumen yang memuat pola pengambilalihan peran
+    # disingkirkan dari hasil pencarian (PRD §18).
+    rag_quarantine_suspicious: bool = True
+
     # --- Upload ---
     upload_dir: Path = PROJECT_ROOT / "storage" / "uploads"
     processed_dir: Path = PROJECT_ROOT / "storage" / "processed"

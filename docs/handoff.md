@@ -7,9 +7,9 @@ menyambung tanpa mengulang pembahasan.
 
 ## Posisi saat ini
 
-**Fase 1 dan Fase 2 selesai. Fase 3 selesai sebagian — semua item yang
+**Fase 1, 2, dan 4 selesai. Fase 3 selesai sebagian — semua item yang
 tidak memerlukan unduhan model sudah dikerjakan dan terbukti.
-Berikutnya: Fase 4 — Agent Orchestrator.**
+Berikutnya: Fase 5 — OCR & Data Terstruktur.**
 
 Rincian tiap item ada di `checklist-progres.md` pada section "Log pengerjaan".
 Itu sumber kebenaran status, bukan dokumen ini.
@@ -17,7 +17,9 @@ Itu sumber kebenaran status, bukan dokumen ini.
 Yang sudah berjalan dan terbukti: PostgreSQL + pgvector, tujuh endpoint
 FastAPI, validasi upload, pipeline dokumen sampai tersimpan sebagai vektor,
 pencarian kemiripan, penyusunan jawaban oleh LLM, pertahanan prompt injection,
-dan **tool calling (4 dari 4 tepat)** — sehingga Fase 4 tidak lagi berisiko.
+dan **Agent yang memilih sendiri tool-nya** — termasuk alur multi-tool
+(`SQL_Query` + `RAG_Search` dalam satu pertanyaan) dan penolakan perintah
+merusak.
 
 Yang belum terbukti: jalur Ollama (kodenya ada, belum pernah dieksekusi) dan
 mutu retrieval yang sebenarnya, karena embedding masih `hash_stub`.
@@ -34,13 +36,13 @@ praktek-ai-engineer/
 ├── docker/postgres/init/     extension vector + user read-only
 ├── backend/
 │   ├── Dockerfile, requirements.txt
-│   ├── main.py config.py database.py models.py schemas.py
+│   ├── main.py config.py database.py models.py schemas.py agent.py
 │   ├── services/  embedding_service, llm_service, document_service
-│   ├── tools/     masih kosong, diisi Fase 4-5
-│   └── tests/     14 test, semuanya lulus
+│   ├── tools/     rag_tool, sql_tool, ocr_tool (OCR menyusul Fase 5)
+│   └── tests/     47 test, semuanya lulus
 ├── frontend/src/{components,services}/  masih kosong
 ├── storage/{uploads,processed}/
-└── docs/  tech-decisions.md (D-01 s/d D-09), handoff.md
+└── docs/  tech-decisions.md (D-01 s/d D-12), handoff.md
 ```
 
 Git ada di branch `main`, belum ada remote.
@@ -75,24 +77,27 @@ docker compose up -d backend    # benar — container dibuat ulang
 docker compose restart backend  # TIDAK membaca ulang .env
 ```
 
-## Langkah berikutnya — Fase 4: Agent Orchestrator
+## Langkah berikutnya — Fase 5: OCR & Data Terstruktur
 
 Sesuai `checklist-progres.md`:
 
-1. Pilih framework agent — PRD §4.2 menyebut LangChain
-2. Definisikan tool `RAG_Search`, `Image_OCR`, `SQL_Query` (PRD §14)
-3. Agent memilih tool sendiri berdasarkan pertanyaan
-4. Uji routing tool, lalu uji alur multi-tool
+1. Pasang PaddleOCR di image backend (`OCR_USE_GPU=false`, lihat catatan RAM)
+2. Isi `ocr_tool.py`: ganti `OCR_SIAP = False` menjadi `True` lalu
+   implementasikan pembacaan gambar
+3. Uji ekstraksi teks dari gambar, lalu uji lewat Agent
+4. Buat schema + data sample untuk SQL Tool, tambahkan tabelnya ke
+   `SQL_AGENT_ALLOWED_TABLES`
+5. Uji query SQL lewat Agent terhadap data sample itu
 
-Sudah terbukti pada Fase 3: provider LLM memilih tool yang tepat pada empat
-kasus uji dan mengisi argumennya dengan benar, termasuk tahu kapan tidak perlu
-tool sama sekali. `llm_service.chat()` sudah menerima parameter `tools` dan
-menyeragamkan `tool_calls` dari kedua provider, jadi pondasinya siap.
+Pondasinya sudah siap: `Image_OCR` sudah terdaftar di Agent, perutean ke tool
+itu terbukti benar, dan `resolve_image_path()` sudah bisa menemukan berkas
+dari nama yang disebut pengguna. Yang tersisa hanyalah mesin OCR-nya.
 
-Catatan: `Image_OCR` baru bisa benar-benar berjalan setelah PaddleOCR dipasang
-di Fase 5, dan `SQL_Query` memakai koneksi read-only yang sudah disiapkan pada
-Fase 2. Pada Fase 4 keduanya bisa dibuat sebagai tool yang mengembalikan pesan
-"belum tersedia", supaya routing-nya tetap dapat diuji lebih dulu.
+Untuk data sample SQL: `SQL_Query` sudah punya validasi allowlist, jadi tabel
+baru **wajib** didaftarkan di `SQL_AGENT_ALLOWED_TABLES` — kalau tidak, Agent
+akan ditolak validasi sendiri dan gejalanya terlihat seperti model yang bodoh.
+User `rag_readonly` otomatis mendapat hak baca atas tabel baru lewat default
+privileges, jadi tidak perlu grant manual.
 
 ### Menyelesaikan sisa Fase 3 (kapan pun Ollama dipasang)
 
@@ -120,6 +125,8 @@ Fase 2. Pada Fase 4 keduanya bisa dibuat sebagai tool yang mengembalikan pesan
 | D-08 | Index HNSW jarak cosine | Tidak perlu dibangun ulang saat data bertambah |
 | D-09 | Nama berkas unggahan diganti UUID | Menutup path traversal dan tabrakan nama |
 | D-10 | Ambang relevansi relatif, bukan angka mati | Rentang skor tiap model embedding berbeda |
+| D-11 | Agent pakai LangChain; satu jalur LLM saja | Dua implementasi untuk satu tujuan mudah jadi tidak sinkron |
+| D-12 | Nama berkas `<uuid>__<nama-asli>` | Tanpa ini gambar tidak pernah bisa dijangkau Image_OCR |
 
 ## Hal yang perlu diwaspadai
 
@@ -148,11 +155,18 @@ dieksekusi saat volume `postgres_data` masih kosong. Bila skripnya diubah,
 perubahan itu baru berlaku setelah `docker compose down -v` — yang juga
 menghapus seluruh data.
 
+**Provider Atria tidak stabil.** Pengukuran pada 21 Sep 2026: 9 dari 12
+permintaan berturut-turut dibalas HTTP 503 oleh load balancer-nya. Ini
+gangguan di sisi provider — permintaan lain berhasil pada saat yang sama.
+`LLM_MAX_RETRIES=8` menutupi sebagian besar kasus, tetapi kegagalan sesekali
+masih mungkin. Bila `/chat` membalas 503 berisi HTML, penyebabnya ini, bukan
+kode. Masalah ini hilang sendiri begitu Ollama lokal dipakai.
+
 **`.env` tidak ikut Git.** Bila project dipindah ke mesin lain, salin `.env`
 secara manual atau buat ulang dari `.env.example`.
 
 ## Cara memulai sesi berikutnya
 
 Jalankan `claude` di `/home/nzrl4h/praktek-ai-engineer`, lalu sampaikan
-kira-kira: *"lanjutkan Fase 3 Integrasi LLM Lokal, baca dulu docs/handoff.md
+kira-kira: *"lanjutkan Fase 5 OCR & Data Terstruktur, baca dulu docs/handoff.md
 dan checklist-progres.md"*.

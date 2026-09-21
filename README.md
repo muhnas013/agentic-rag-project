@@ -118,11 +118,23 @@ tetap memerlukan `restart` atau `build`.
 | POST   | `/documents`    | Tambah dokumen dari teks langsung            |
 | GET    | `/documents`    | Daftar dokumen terindeks + jumlah potongan   |
 | POST   | `/query`        | Pencarian RAG mentah, tanpa LLM              |
-| POST   | `/chat`         | Jawaban berbasis dokumen                     |
+| POST   | `/chat`         | **Agent** memilih sendiri tool yang dipakai; `tool_used` menyebut hasilnya |
 | GET    | `/chat/history` | Riwayat percakapan satu sesi                 |
 
 `/query` sengaja dipisah dari `/chat`: bila jawaban keliru, endpoint itu
 menunjukkan apakah penyebabnya ada pada pencarian atau pada model.
+
+### Tool yang dimiliki Agent (PRD §8)
+
+| Tool | Kegunaan | Status |
+|------|----------|--------|
+| `RAG_Search` | Mencari di dokumen yang sudah diindeks | Berjalan |
+| `SQL_Query` | `SELECT` ke `chat_history` dan `documents` | Berjalan, hanya baca |
+| `Image_OCR` | Membaca teks dari gambar | Terdaftar; mesin OCR menyusul Fase 5 |
+
+`SQL_Query` berlapis tiga: user PostgreSQL read-only dengan timeout, validasi
+query yang menolak selain `SELECT` beserta tabel di luar allowlist, dan
+`LIMIT` yang dipasang paksa.
 
 ### Provider model
 

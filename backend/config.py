@@ -89,6 +89,10 @@ class Settings(BaseSettings):
     ollama_timeout: int = 120
     ollama_num_ctx: int = 8192
 
+    # Provider API dapat membalas 503/429 secara sporadis; percobaan
+    # ulang dilakukan dengan jeda menaik sebelum menyerah.
+    llm_max_retries: int = 8
+
     # Dimensi kolom VECTOR mengikuti nilai ini, tidak ditulis mati (D-02b).
     embedding_dim: int = 768
 

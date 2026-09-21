@@ -143,18 +143,33 @@ def validate_upload(filename: str, head: bytes) -> str:
     return extension
 
 
+def sanitise_filename(filename: str) -> str:
+    """Jadikan nama berkas aman dipakai di disk.
+
+    Komponen direktori dibuang lebih dulu, lalu karakter di luar huruf,
+    angka, titik, garis bawah, dan strip diganti garis bawah. Dengan begitu
+    "../../etc/passwd" menjadi "passwd" saja.
+    """
+    nama = Path(filename).name
+    bersih = re.sub(r"[^A-Za-z0-9._-]", "_", nama).lstrip(".")
+    return (bersih or "berkas")[:100]
+
+
 def save_upload(source: BinaryIO, filename: str) -> tuple[Path, int]:
     """Simpan unggahan ke storage/uploads sambil menegakkan batas ukuran.
 
     Berkas dibaca bertahap agar unggahan raksasa tidak pernah masuk memori
-    utuh, dan dihapus lagi bila melewati batas. Nama berkas diganti dengan
-    UUID supaya path traversal dan tabrakan nama tidak mungkin terjadi;
-    nama asli tetap disimpan di kolom metadata.
+    utuh, dan dihapus lagi bila melewati batas.
+
+    Nama di disk berbentuk `<uuid>__<nama-asli-yang-dibersihkan>`. Awalan UUID
+    menutup tabrakan nama antar pengguna dan membuat path traversal mustahil,
+    sementara nama asli yang ikut disimpan membuat berkas masih bisa dicari
+    kembali dari nama yang dikenal pengguna — itulah yang dibutuhkan Image_OCR,
+    karena pengguna menyebut "struk.png", bukan UUID-nya.
     """
-    extension = _extension_of(filename)
     destination_dir = Path(settings.upload_dir)
     destination_dir.mkdir(parents=True, exist_ok=True)
-    destination = destination_dir / f"{uuid.uuid4().hex}{extension}"
+    destination = destination_dir / f"{uuid.uuid4().hex}__{sanitise_filename(filename)}"
 
     limit = settings.max_upload_size_bytes
     size = 0

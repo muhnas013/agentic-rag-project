@@ -210,3 +210,48 @@ mengosongkan konteks. Isi `RAG_MIN_SCORE_RATIO=0` untuk mematikannya.
 **Konsekuensi.** `POST /chat` menyaring, `POST /query` tidak. Perbedaan itu
 disengaja: `/query` adalah endpoint diagnostik, gunanya justru memperlihatkan
 apa yang sebenarnya dikembalikan pencarian sebelum disaring.
+
+### D-11 — Agent memakai LangChain, dan hanya ada satu jalur pemanggilan LLM
+
+**Keputusan.** Agent dibangun dengan `create_agent` milik LangChain sesuai
+PRD §4.2. Versi yang terpasang (1.4.2) memakai API baru berbasis LangGraph,
+bukan `AgentExecutor` lama yang banyak beredar di contoh lama.
+
+**Konsekuensi yang disengaja.** `llm_service.py` ditulis ulang: klien HTTP
+buatan sendiri diganti model LangChain (`ChatOpenAI` dan `ChatOllama`).
+Sebelumnya ada dua jalur memanggil LLM yang sama — satu lewat httpx untuk
+endpoint `/chat`, satu lagi lewat LangChain untuk Agent. Dua implementasi
+untuk satu tujuan adalah sumber masalah yang khas: setelan seperti
+`max_retries` atau timeout diperbaiki di satu tempat dan terlupakan di tempat
+lain, lalu perilakunya berbeda tanpa ada yang menyadari.
+
+Lapisan provider dari keputusan D-06 tetap: `get_chat_model()` memilih
+implementasi berdasarkan `LLM_PROVIDER`, dan pemanggilnya tidak perlu tahu
+provider mana yang aktif.
+
+**`embedding_service.py` sengaja tidak ikut dipindahkan** dan tetap memakai
+httpx. Alasannya: `hash_stub` tidak punya padanan di LangChain, dan
+pemeriksaan dimensi vektor di sana lebih berharga daripada keseragaman
+lapisan. Menyeragamkannya hanya demi keseragaman akan menghapus pemeriksaan
+itu tanpa memberi apa pun sebagai gantinya.
+
+### D-12 — Nama berkas unggahan: `<uuid>__<nama-asli>`
+
+**Revisi atas keputusan D-09.** D-09 menyimpan berkas hanya sebagai
+`<uuid>.<ekstensi>` dan mengandalkan kolom `documents.filename` untuk
+mengingat nama aslinya. Itu cukup untuk dokumen, tetapi **tidak untuk
+gambar**: gambar tidak pernah masuk tabel `documents`, sehingga tidak ada
+satu pun tempat yang menghubungkan "struk.png" yang disebut pengguna dengan
+UUID di disk. Akibatnya `Image_OCR` selalu melaporkan berkas tidak ditemukan.
+
+Cacat ini ketahuan saat menguji perutean tool pada Fase 4. Bila lolos, Fase 5
+akan dimulai dengan blocker tersembunyi: PaddleOCR terpasang dengan benar
+tetapi tidak pernah menerima satu berkas pun.
+
+**Keputusan.** Nama di disk menjadi `<uuid>__<nama-asli-yang-dibersihkan>`.
+`resolve_image_path()` mencocokkan berdasarkan akhiran nama dan memilih
+unggahan terbaru bila ada beberapa berkas bernama sama.
+
+Jaminan keamanan D-09 tetap utuh: nama asli dibersihkan lebih dulu (hanya
+huruf, angka, titik, garis bawah, strip; komponen direktori dibuang), dan
+awalan UUID tetap mencegah tabrakan nama antar pengguna.

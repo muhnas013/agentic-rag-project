@@ -13,6 +13,11 @@ SQLAlchemy>=2.0,<3.0
 psycopg[binary]>=3.2,<4.0          # driver PostgreSQL v3 (keputusan D-04)
 pgvector>=0.3,<1.0                 # tipe kolom VECTOR untuk SQLAlchemy
 
+# --- Agent (PRD §4.2) ---
+langchain>=1.4,<2.0                # create_agent, definisi @tool
+langchain-openai>=1.0,<2.0         # provider OpenAI-compatible
+langchain-ollama>=1.0,<2.0         # provider Ollama (Fase 3 lanjutan)
+
 # --- RAG ---
 langchain-text-splitters>=0.3,<1.0 # RecursiveCharacterTextSplitter
 pypdf>=5.0,<7.0                    # pembaca PDF

@@ -47,11 +47,54 @@ Host tidak perlu dipasangi Python tambahan.
 **Konsekuensi.** Perintah pengembangan dijalankan lewat `docker compose`.
 Kode sumber di-mount sebagai volume agar hot-reload Uvicorn tetap berfungsi.
 
-### D-02 — Model LLM: `llama3.1:8b`
+### D-02 — Model LLM: `qwen2.5:7b-instruct-q4_K_M`
 
-PRD §12 mencontohkan `llama3`. Dipilih `llama3.1:8b` (kuantisasi Q4, ±4,7 GB)
-karena muat di VRAM 8 GB dan merupakan penerus langsung dari contoh di PRD.
-Diganti lewat `OLLAMA_LLM_MODEL` di `.env` tanpa perubahan kode.
+PRD §12 mencontohkan `llama3`. Dipilih Qwen2.5 7B Instruct kuantisasi Q4_K_M
+(unduh 4,7 GB, konteks 32K) setelah membandingkan empat kandidat.
+
+**Alasan.** Agent pada PRD §14 harus memilih sendiri di antara tiga tool, jadi
+keandalan *tool calling* lebih menentukan daripada ukuran model. Qwen2.5 7B
+menghasilkan JSON tool call yang konsisten dan menguasai bahasa Indonesia
+lebih baik daripada Llama 3.1 8B. Satu pertanyaan memicu sekitar tiga panggilan
+LLM (pilih tool → olah hasil tool → susun jawaban), sehingga latensi berlipat
+dan model yang lebih ramping terasa jauh lebih enak dipakai.
+
+**Anggaran VRAM** dari 7,8 GB yang bebas di RTX 4060:
+
+| Komponen              | VRAM   |
+|-----------------------|--------|
+| Bobot LLM             | 4,7 GB |
+| KV cache (8K konteks) | 0,5 GB |
+| `nomic-embed-text`    | 0,3 GB |
+| **Total**             | **5,5 GB** |
+| Sisa                  | 2,3 GB |
+
+Sisa 2,3 GB mencegah layer melimpah ke CPU saat konteks membengkak.
+
+**Alternatif yang ditolak.** `qwen3:8b` bernalar lebih baik tetapi menyisakan
+hanya 0,7 GB. `llama3.1:8b` lebih lemah pada bahasa Indonesia. `qwen3:4b`
+terlalu sering salah memilih tool pada pertanyaan ambigu.
+
+**Konteks dibatasi 8K** lewat `OLLAMA_NUM_CTX`, bukan 32K bawaan model, agar
+KV cache tetap kecil. Nilainya cukup untuk system prompt, definisi tool, empat
+potongan dokumen, dan riwayat percakapan.
+
+### D-02b — Embedding: `nomic-embed-text` (768 dimensi)
+
+Sesuai default PRD §12, sehingga kolom `embedding VECTOR(768)` pada PRD §7.2
+dipakai apa adanya.
+
+**Risiko yang diterima.** Model ini berorientasi bahasa Inggris. Pada tolok
+ukur retrieval, `bge-m3` mencapai 72% berbanding 57% milik `nomic-embed-text`,
+sehingga pada dokumen berbahasa Indonesia potongan yang relevan lebih sering
+tidak terambil. Risiko ini diambil secara sadar demi menghemat 0,9 GB VRAM dan
+tetap setia pada PRD.
+
+**Mitigasi.** Dimensi vektor tidak ditulis mati di kode, melainkan dibaca dari
+`EMBEDDING_DIM` di `.env`. Bila pengujian retrieval pada Fase 7 mengecewakan,
+pindah ke `bge-m3` cukup dengan mengubah dua variabel `.env`
+(`OLLAMA_EMBEDDING_MODEL=bge-m3`, `EMBEDDING_DIM=1024`), menjalankan migrasi
+kolom, lalu melakukan embedding ulang atas dokumen — tanpa mengubah kode.
 
 ### D-03 — Ollama berjalan di host, bukan container
 

@@ -34,8 +34,8 @@ FastAPI  →  Agent Orchestrator (LangChain)
 | Frontend  | ViteJS, React, TailwindCSS, Axios              |
 | Backend   | Python 3.12, FastAPI, Uvicorn, SQLAlchemy      |
 | Agent     | LangChain                                      |
-| LLM       | Ollama (`llama3.1:8b`)                         |
-| Embedding | `nomic-embed-text` (768 dimensi)               |
+| LLM       | Ollama — `qwen2.5:7b-instruct-q4_K_M`          |
+| Embedding | Ollama — `nomic-embed-text` (768 dimensi)      |
 | OCR       | PaddleOCR                                      |
 | Database  | PostgreSQL 16 + pgvector                       |
 
@@ -63,6 +63,15 @@ praktek-ai-engineer/
 - Node.js 18+ (untuk frontend)
 - Ollama di host machine
 - GPU NVIDIA 8 GB VRAM (opsional, tetapi mempercepat LLM dan OCR)
+
+### Model yang perlu diunduh
+
+```bash
+ollama pull qwen2.5:7b-instruct-q4_K_M   # 4,7 GB — LLM Agent
+ollama pull nomic-embed-text             # 274 MB — embedding RAG
+```
+
+Keduanya residen bersamaan di VRAM saat RAG berjalan: ±5,5 GB dari 8 GB.
 
 ## Cara menjalankan
 

@@ -38,6 +38,7 @@
 
 ## Fase 3: Integrasi LLM Lokal
 - [ ] Setup Ollama
+- [x] Tentukan model LLM + embedding (qwen2.5:7b + nomic-embed-text)
 - [ ] Pull model LLM yang akan dipakai
 - [ ] Integrasi FastAPI ke Ollama
 - [ ] Uji prompt dasar ke model
@@ -133,3 +134,51 @@ Blocker: tidak ada.
 Belum dikerjakan (masuk fase berikutnya):
 - Ollama belum terpasang di mesin → Fase 3.
 - `docker-compose.yml` dan `backend/requirements.txt` → Fase 2.
+
+### Pemilihan model · selesai (21 Sep 2026)
+
+Dilakukan sebelum Fase 2 agar skema database dan konfigurasi tidak perlu
+diulang di kemudian hari.
+
+Hasil pengukuran mesin: RTX 4060 Laptop dengan 7,8 GB VRAM bebas,
+i7-13700HX 16 core / 24 thread, RAM 15 GB (6,4 GB tersedia) + swap 30 GB,
+disk bebas 139 GB.
+
+| Peran     | Model                          | Unduh  | VRAM   |
+|-----------|--------------------------------|--------|--------|
+| LLM Agent | `qwen2.5:7b-instruct-q4_K_M`   | 4,7 GB | 5,2 GB |
+| Embedding | `nomic-embed-text` (v1.5)      | 274 MB | 0,3 GB |
+| **Total** |                                |        | **5,5 GB** dari 7,8 GB |
+
+Sisa 2,3 GB. PaddleOCR sengaja dijalankan di CPU (`OCR_USE_GPU=false`)
+agar tidak berebut VRAM; dengan 24 thread, OCR di CPU masih cepat.
+
+Pertimbangan utama: keandalan *tool calling*, bukan ukuran model. Agent pada
+PRD §14 harus memilih sendiri di antara `RAG_Search`, `Image_OCR`, dan
+`SQL_Query`, sehingga model yang lemah pada tool calling akan menggagalkan
+premis project. Qwen2.5 7B unggul pada tool calling dan bahasa Indonesia
+dibanding Llama 3.1 8B, serta menyisakan penyangga VRAM lebih besar daripada
+Qwen3 8B.
+
+Alternatif yang ditolak: `qwen3:8b` (sisa VRAM hanya 0,7 GB),
+`llama3.1:8b` (bahasa Indonesia lebih lemah), `qwen3:4b` (sering salah tool).
+
+Kedua tag sudah diverifikasi tersedia di registry Ollama sebelum ditetapkan.
+
+Perubahan konfigurasi:
+- `OLLAMA_LLM_MODEL=qwen2.5:7b-instruct-q4_K_M` (sebelumnya `llama3.1:8b`)
+- `OLLAMA_NUM_CTX=8192` ditambahkan — membatasi KV cache, cukup untuk system
+  prompt, definisi tool, 4 potongan dokumen, dan riwayat percakapan
+- `EMBEDDING_DIM=768` tetap, sehingga `VECTOR(768)` pada PRD §7.2 dipakai apa adanya
+
+Risiko yang diterima dan mitigasinya:
+- `nomic-embed-text` berorientasi bahasa Inggris (akurasi retrieval 57%
+  berbanding 72% milik `bge-m3`), sehingga pada dokumen berbahasa Indonesia
+  potongan relevan lebih sering tidak terambil. Dipilih karena sesuai default
+  PRD dan hemat VRAM.
+- Mitigasi: dimensi vektor dibaca dari `EMBEDDING_DIM`, tidak ditulis mati di
+  kode. Bila uji retrieval Fase 7 mengecewakan, pindah ke `bge-m3` cukup ubah
+  `.env` (`bge-m3` + `EMBEDDING_DIM=1024`), migrasi kolom, lalu embedding ulang.
+  **Perlu dicek ulang saat Fase 7.**
+
+Blocker: tidak ada. Ollama belum terpasang — pengunduhan model dilakukan di Fase 3.

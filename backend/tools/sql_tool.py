@@ -128,12 +128,19 @@ def sql_query(query: str) -> str:
     Pakai untuk hitungan, agregasi, atau daftar baris dari tabel berikut:
 
       pegawai(id, nama, nip, bagian, jabatan, tanggal_masuk)
+        bagian: Kepegawaian | Keuangan | Umum | Pengadaan | TIK
+
       pengajuan_cuti(id, pegawai_id, jenis, tanggal_mulai, tanggal_selesai,
                      jumlah_hari, status, dibuat_pada)
+        jenis : tahunan | sakit | besar | melahirkan
+        status: diajukan | disetujui | ditolak
+        pegawai_id mengacu ke pegawai.id
       chat_history(id, session_id, role, message, created_at)
       documents(id, filename, content, metadata, created_at)
 
-    Catatan: satu baris `documents` adalah satu potongan, bukan satu berkas.
+    Pakai nilai persis seperti tertulis di atas; jangan mengarang nilai lain.
+    Catatan: satu baris `documents` adalah satu POTONGAN, bukan satu berkas.
+    Jumlah dokumen = COUNT(DISTINCT filename); COUNT(*) memberi jumlah potongan.
     Hanya SELECT. Tanpa titik koma dan tanpa komentar.
 
     Args:

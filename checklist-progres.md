@@ -39,7 +39,7 @@
 ## Fase 3: Integrasi LLM Lokal
 - [x] Setup Ollama
 - [x] Tentukan model LLM + embedding (qwen2.5:7b + nomic-embed-text)
-- [!] Pull model LLM yang akan dipakai (llama3.2:3b terunduh, tetapi mutunya tidak memadai — lihat log)
+- [x] Pull model LLM yang akan dipakai (qwen2.5:3b-instruct-q4_K_M)
 - [x] Integrasi FastAPI ke Ollama
 - [x] Uji prompt dasar ke model
 - [x] Uji RAG + LLM menghasilkan jawaban
@@ -52,7 +52,7 @@
 - [x] Definisikan tool SQL
 - [x] Agent dapat memilih tool berdasarkan pertanyaan
 - [x] Uji routing tool secara dasar
-- [x] Uji multi-tool workflow
+- [!] Uji multi-tool workflow (berhasil dengan Atria; qwen2.5:3b tidak andal — lihat log)
 
 ## Fase 5: OCR & Data Terstruktur
 - [x] Setup PaddleOCR
@@ -61,7 +61,7 @@
 - [x] Integrasikan OCR dengan agent
 - [x] Setup PostgreSQL schema data sample
 - [x] Buat SQL tool untuk query data
-- [!] Uji query SQL via agent (tool terbukti benar; llama3.2:3b gagal menyusun query — lihat log)
+- [x] Uji query SQL via agent
 
 ## Fase 6: Frontend
 - [ ] Setup Vite + React/Vue project
@@ -76,7 +76,7 @@
 - [ ] Uji endpoint backend
 - [x] Uji flow RAG end-to-end (retrieval, jawaban, dan prompt injection)
 - [x] Uji OCR end-to-end
-- [ ] Uji SQL query end-to-end
+- [x] Uji SQL query end-to-end
 - [ ] Uji performance dasar
 - [ ] Perbaiki bug yang ditemukan
 - [ ] Simpan log / dokumentasi bug
@@ -568,7 +568,7 @@ ambang, bukan menutup celah; disebutkan apa adanya di D-13.
 
 Jumlah test: 51 -> 70, semuanya lulus.
 
-### Fase 5 — OCR & Data Terstruktur · selesai, kecuali uji SQL via Agent (22 Sep 2026)
+### Fase 5 — OCR & Data Terstruktur · selesai (22 Sep 2026)
 
 **PaddleOCR berjalan.** `paddlepaddle` 3.3.1 + `paddleocr` 3.7.0 di CPU
 (`OCR_USE_GPU=false`), sesuai keputusan D-02 agar tidak berebut VRAM.
@@ -659,9 +659,64 @@ tool.
 
 Jumlah test: 70 -> 83, semuanya lulus.
 
-**Blocker:** `llama3.2:3b` tidak memenuhi syarat PRD §16 untuk SQL Test.
-Batasan ini sudah dicatat di D-13 dan kini terbukti memblokir satu kriteria
-pengujian PRD secara langsung, bukan sekadar menurunkan mutu.
+**Blocker saat itu:** `llama3.2:3b` tidak memenuhi syarat PRD §16 untuk
+SQL Test. Blocker ini **sudah diselesaikan** dengan mengganti model —
+lihat entri berikutnya.
+
+### Ganti model ke `qwen2.5:3b-instruct-q4_K_M` · selesai (22 Sep 2026)
+
+Blocker SQL Test pada Fase 5 selesai. Unduhan 1,9 GB — lebih kecil daripada
+`llama3.2:3b` yang digantikannya. Peralihan hanya mengubah satu baris `.env`.
+
+**Perbandingan pada harness uji yang sama**
+
+| Uji | `llama3.2:3b` | `qwen2.5:3b` |
+|-----|---------------|--------------|
+| Perutean tool (4 kasus) | 3/4 | **4/4** |
+| "total transaksi" pada struk | 400.000 (nilai Tunai) — salah | **366.300 — benar** |
+| SQL via Agent (4 pertanyaan) | 0/3, membaik jadi 1/3 | **4/4, seluruh jawaban benar** |
+| "ada berapa dokumen?" | 12 (jumlah potongan) | **5 — benar** |
+| Kebocoran instruksi sistem | 4/5 sebelum ditambal | 0/5 |
+| Multi-tool satu giliran | tidak diuji | tidak andal |
+
+**Dua kesalahan saya sendiri ikut ketahuan dan diperbaiki**
+
+1. **Daftar nilai sah kolom sempat saya hapus.** Saat menyelidiki kegagalan
+   `llama3.2:3b`, deskripsi tool SQL diringkas — dan enumerasi
+   `status: diajukan | disetujui | ditolak` serta petunjuk
+   `COUNT(DISTINCT filename)` ikut terbuang. Akibatnya `qwen2.5:3b` mengarang
+   nilai: `WHERE status = 'dijalankan'`, yang menghasilkan 0 baris sehingga
+   jawabannya "tidak ada pengajuan" — padahal ada 3. Setelah dikembalikan,
+   keempat pertanyaan SQL dijawab benar, dan "berapa dokumen" berubah dari
+   12 menjadi 5.
+
+   Pelajarannya: untuk kolom berkardinalitas rendah, mencantumkan nilai yang
+   sah jauh lebih menentukan daripada memperpendek prompt.
+
+2. **Pengulangan dengan parameter identik tidak ada gunanya.** Model sesekali
+   mengembalikan balasan kosong tanpa memanggil tool. Pengulangan pertama
+   yang saya pasang memakai suhu yang sama persis, dan terbukti menghasilkan
+   kegagalan yang sama persis tiga kali berturut-turut. Suhu kini dinaikkan
+   bertahap tiap percobaan (0,2 → 0,5 → 0,8), cukup untuk menggeser sampling
+   keluar dari jalan buntu. Bila ketiganya tetap kosong, pengguna menerima
+   pesan yang jelas — bukan string kosong seperti sebelumnya.
+
+**Batasan yang tersisa.** Alur multi-tool dalam satu giliran tidak andal:
+pada tiga percobaan, model umumnya memakai satu tool saja, dan ketika
+memakai keduanya jawabannya justru keliru. Atria berhasil pada uji yang
+sama di Fase 4. Ini batas wajar model 3B; naik ke `qwen2.5:7b` (4,68 GB,
+muat di VRAM) hanya mengubah satu baris `.env` bila kelak diperlukan.
+
+Satu catatan kejujuran soal pengukuran: harness uji membandingkan daftar
+tool sebagai string, sehingga urutan pemanggilan yang berbeda terbaca
+sebagai gagal walau kedua tool benar-benar dipakai. Satu kasus multi-tool
+tertandai gagal karena ini — jawabannya tetap salah, jadi kesimpulannya
+tidak berubah.
+
+`llama3.2:3b` dibiarkan terpasang agar perbandingan bisa diulang;
+`ollama rm llama3.2:3b` membebaskan 2,0 GB bila tidak diperlukan lagi.
+
+Jumlah test tetap 83, semuanya lulus.
 
 ---
 

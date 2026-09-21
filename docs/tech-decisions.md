@@ -319,3 +319,39 @@ dari kode:
 mengubah `.env` (plus `ALTER TABLE` untuk 1024 dimensi dan
 `reindex --jalan --paksa`). Tidak ada kode yang perlu ditulis ulang, dan
 kedua lapisan pertahanan di atas tetap berguna sebagai pertahanan berlapis.
+
+### D-14 — Model LLM: `qwen2.5:3b-instruct-q4_K_M`
+
+**Menggantikan pilihan sementara `llama3.2:3b`** setelah pengujian Fase 5
+menunjukkan model itu memblokir kriteria SQL Test pada PRD §16: pemanggilan
+tool ditulis sebagai teks JSON rusak di dalam jawaban, bukan lewat mekanisme
+tool calling.
+
+Ukurannya 1,9 GB — **lebih kecil** daripada model yang digantikan, sehingga
+tidak ada biaya disk tambahan. Ini mengembalikan pilihan ke keluarga yang
+sejak awal dipilih D-02 atas dasar keandalan tool calling dan bahasa
+Indonesia; yang berbeda hanya ukurannya, 3B alih-alih 7B.
+
+**Hasil pada harness uji yang sama:** perutean tool 3/4 → 4/4, SQL via Agent
+0/3 → 4/4 dengan seluruh jawaban benar, "total transaksi" pada struk dari
+salah menjadi benar, dan "berapa dokumen" dari 12 menjadi 5.
+
+**Dua perbaikan menyertainya**, keduanya memperbaiki kesalahan yang muncul
+saat menangani model sebelumnya:
+
+1. Deskripsi tool SQL mencantumkan kembali nilai sah tiap kolom
+   berkardinalitas rendah (`status: diajukan | disetujui | ditolak`) dan
+   petunjuk `COUNT(DISTINCT filename)`. Keduanya sempat terbuang saat
+   deskripsi diringkas, dan model lalu mengarang nilai `status = 'dijalankan'`
+   yang menghasilkan 0 baris — jawaban salah tanpa satu pun galat.
+
+2. Pengulangan saat model mengembalikan jawaban kosong kini menaikkan suhu
+   bertahap (0,2 → 0,5 → 0,8). Pengulangan dengan parameter identik terbukti
+   sia-sia: tiga percobaan berturut-turut gagal dengan cara yang sama persis.
+
+**Batas yang diterima.** Alur multi-tool dalam satu giliran tidak andal pada
+model 3B. Naik ke `qwen2.5:7b` (4,68 GB, muat di VRAM bersama embedding)
+hanya mengubah `OLLAMA_LLM_MODEL` di `.env`.
+
+Dua lapisan pertahanan dari D-13 tetap dipertahankan meski modelnya lebih
+patuh: keduanya pertahanan berlapis, bukan tambalan untuk satu model.

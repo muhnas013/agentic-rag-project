@@ -72,6 +72,22 @@ PENOLAKAN = (
     "Ada hal lain yang bisa saya bantu?"
 )
 
+# Model kecil sesekali mengembalikan balasan kosong tanpa memanggil tool apa
+# pun — pada pengujian, pertanyaan yang sama berhasil di percobaan pertama
+# lalu kosong dua kali berturut-turut. Pengulangan menutup sebagian besar
+# kasus itu; sisanya dijawab pesan di bawah, bukan string kosong.
+# Mengulang dengan parameter yang sama persis menghasilkan kegagalan yang
+# sama persis — terbukti pada pengujian: tiga percobaan berturut-turut sama
+# kosongnya. Karena itu suhu dinaikkan bertahap tiap percobaan, cukup untuk
+# menggeser sampling keluar dari jalan buntu tanpa membuat jawaban ngawur.
+SUHU_PERCOBAAN = (0.2, 0.5, 0.8)
+MAKS_PERCOBAAN = len(SUHU_PERCOBAAN)
+
+PESAN_KOSONG = (
+    "Maaf, saya belum berhasil menyusun jawaban untuk pertanyaan itu. "
+    "Coba ulangi dengan kalimat yang sedikit berbeda."
+)
+
 
 def _shingles(teks: str, n: int = _PANJANG_SHINGLE) -> set[tuple[str, ...]]:
     kata = re.findall(r"\w+", teks.lower())
@@ -150,32 +166,50 @@ async def run_agent(question: str, history: list[dict[str, str]] | None = None) 
     Raises:
         LLMError: bila provider tidak dapat disiapkan atau dihubungi.
     """
-    start_trace()
-
     messages: list[tuple[str, str]] = [
         (pesan["role"], pesan["content"]) for pesan in (history or [])
     ]
     messages.append(("user", question))
 
-    try:
-        hasil = await build_agent().ainvoke({"messages": messages})
-    except LLMError:
-        raise
-    except Exception as exc:
-        # Galat dari provider maupun dari graf LangChain diseragamkan, agar
-        # endpoint tidak perlu mengenali tipe galat tiap pustaka.
-        logger.exception("Agent gagal menjawab")
-        raise LLMError(f"Agent gagal menjawab: {exc}") from exc
-
     jawaban = ""
-    if hasil.get("messages"):
-        isi = hasil["messages"][-1].content
-        # Sebagian model membalas sebagai daftar blok konten, bukan string.
-        jawaban = isi if isinstance(isi, str) else "".join(
-            bagian.get("text", "") for bagian in isi if isinstance(bagian, dict)
+    jejak: list[ToolInvocation] = []
+
+    for percobaan in range(1, MAKS_PERCOBAAN + 1):
+        # Jejak dimulai ulang tiap percobaan agar tool dari percobaan yang
+        # gagal tidak ikut terhitung pada jawaban akhir.
+        start_trace()
+
+        suhu = SUHU_PERCOBAAN[percobaan - 1]
+        try:
+            hasil = await build_agent(suhu).ainvoke({"messages": messages})
+        except LLMError:
+            raise
+        except Exception as exc:
+            # Galat dari provider maupun dari graf LangChain diseragamkan,
+            # agar endpoint tidak perlu mengenali tipe galat tiap pustaka.
+            logger.exception("Agent gagal menjawab")
+            raise LLMError(f"Agent gagal menjawab: {exc}") from exc
+
+        jawaban = ""
+        if hasil.get("messages"):
+            isi = hasil["messages"][-1].content
+            # Sebagian model membalas sebagai daftar blok konten, bukan string.
+            jawaban = isi if isinstance(isi, str) else "".join(
+                bagian.get("text", "") for bagian in isi if isinstance(bagian, dict)
+            )
+        jawaban = jawaban.strip()
+        jejak = list(current_trace())
+
+        if jawaban:
+            break
+
+        logger.warning(
+            "Jawaban kosong (percobaan %d/%d, suhu %.1f) untuk: %r",
+            percobaan, MAKS_PERCOBAAN, suhu, question[:120],
         )
 
-    jawaban = jawaban.strip()
+    if not jawaban:
+        jawaban = PESAN_KOSONG
     if membocorkan_system_prompt(jawaban):
         logger.warning(
             "Jawaban mengutip system prompt — diganti penolakan. Pertanyaan: %r",
@@ -183,9 +217,8 @@ async def run_agent(question: str, history: list[dict[str, str]] | None = None) 
         )
         jawaban = PENOLAKAN
 
-    jejak = current_trace()
     logger.info(
         "Agent selesai. Tool dipakai: %s",
         ", ".join(c.name for c in jejak) or "(tanpa tool)",
     )
-    return AgentResult(answer=jawaban, tool_calls=list(jejak))
+    return AgentResult(answer=jawaban, tool_calls=jejak)

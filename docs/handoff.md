@@ -7,9 +7,7 @@ menyambung tanpa mengulang pembahasan.
 
 ## Posisi saat ini
 
-**Fase 1, 2, dan 4 selesai. Fase 3 selesai sebagian — semua item yang
-tidak memerlukan unduhan model sudah dikerjakan dan terbukti.
-Berikutnya: Fase 5 — OCR & Data Terstruktur.**
+**Fase 1 sampai 5 selesai. Berikutnya: Fase 6 — Frontend.**
 
 Rincian tiap item ada di `checklist-progres.md` pada section "Log pengerjaan".
 Itu sumber kebenaran status, bukan dokumen ini.
@@ -39,10 +37,11 @@ praktek-ai-engineer/
 │   ├── main.py config.py database.py models.py schemas.py agent.py
 │   ├── services/  embedding_service, llm_service, document_service
 │   ├── tools/     rag_tool, sql_tool, ocr_tool (OCR menyusul Fase 5)
-│   └── tests/     47 test, semuanya lulus
+│   ├── tests/     83 test, semuanya lulus
+│   └── reindex.py, agent.py
 ├── frontend/src/{components,services}/  masih kosong
 ├── storage/{uploads,processed}/
-└── docs/  tech-decisions.md (D-01 s/d D-12), handoff.md
+└── docs/  tech-decisions.md (D-01 s/d D-14), handoff.md
 ```
 
 Git ada di branch `main`, belum ada remote.
@@ -83,27 +82,22 @@ docker compose up -d backend    # benar — container dibuat ulang
 docker compose restart backend  # TIDAK membaca ulang .env
 ```
 
-## Langkah berikutnya — Fase 5: OCR & Data Terstruktur
+## Langkah berikutnya — Fase 6: Frontend
 
 Sesuai `checklist-progres.md`:
 
-1. Pasang PaddleOCR di image backend (`OCR_USE_GPU=false`, lihat catatan RAM)
-2. Isi `ocr_tool.py`: ganti `OCR_SIAP = False` menjadi `True` lalu
-   implementasikan pembacaan gambar
-3. Uji ekstraksi teks dari gambar, lalu uji lewat Agent
-4. Buat schema + data sample untuk SQL Tool, tambahkan tabelnya ke
-   `SQL_AGENT_ALLOWED_TABLES`
-5. Uji query SQL lewat Agent terhadap data sample itu
+1. `npm create vite@latest frontend -- --template react` (PRD §15)
+2. Layout chat dasar, input prompt, dan tombol unggah berkas
+3. Integrasi ke API backend lewat Axios — `CORS_ORIGINS` di `.env` sudah
+   menunjuk `http://localhost:5173`
+4. Tampilkan jawaban beserta `tool_used` dan `sources`; tambahkan loading
+   state dan penanganan galat
 
-Pondasinya sudah siap: `Image_OCR` sudah terdaftar di Agent, perutean ke tool
-itu terbukti benar, dan `resolve_image_path()` sudah bisa menemukan berkas
-dari nama yang disebut pengguna. Yang tersisa hanyalah mesin OCR-nya.
-
-Untuk data sample SQL: `SQL_Query` sudah punya validasi allowlist, jadi tabel
-baru **wajib** didaftarkan di `SQL_AGENT_ALLOWED_TABLES` — kalau tidak, Agent
-akan ditolak validasi sendiri dan gejalanya terlihat seperti model yang bodoh.
-User `rag_readonly` otomatis mendapat hak baca atas tabel baru lewat default
-privileges, jadi tidak perlu grant manual.
+Endpoint yang tersedia ada di README. Dua yang perlu diperhatikan frontend:
+`POST /chat` mengembalikan `answer`, `tool_used`, dan `sources`, sedangkan
+`POST /upload` mengembalikan `status` `processed` untuk dokumen dan `stored`
+untuk gambar — gambar baru bisa dibaca setelah pengguna menanyakannya lewat
+`/chat`, karena OCR dijalankan Agent, bukan saat unggah.
 
 ### Menyelesaikan sisa Fase 3 (kapan pun Ollama dipasang)
 
@@ -133,7 +127,8 @@ privileges, jadi tidak perlu grant manual.
 | D-10 | Ambang relevansi relatif, bukan angka mati | Rentang skor tiap model embedding berbeda |
 | D-11 | Agent pakai LangChain; satu jalur LLM saja | Dua implementasi untuk satu tujuan mudah jadi tidak sinkron |
 | D-12 | Nama berkas `<uuid>__<nama-asli>` | Tanpa ini gambar tidak pernah bisa dijangkau Image_OCR |
-| D-13 | Model kecil dipertahankan; pertahanan di kode | Model terbukti tidak bisa diandalkan menolak sendiri |
+| D-13 | Pertahanan prompt injection ditegakkan di kode | Model terbukti tidak bisa diandalkan menolak sendiri |
+| D-14 | LLM `qwen2.5:3b-instruct-q4_K_M` | 1,9 GB, lebih kecil dari llama3.2:3b, dan membuka blocker SQL Test |
 
 ## Hal yang perlu diwaspadai
 
@@ -175,5 +170,5 @@ secara manual atau buat ulang dari `.env.example`.
 ## Cara memulai sesi berikutnya
 
 Jalankan `claude` di `/home/nzrl4h/praktek-ai-engineer`, lalu sampaikan
-kira-kira: *"lanjutkan Fase 5 OCR & Data Terstruktur, baca dulu docs/handoff.md
-dan checklist-progres.md"*.
+kira-kira: *"lanjutkan Fase 6 Frontend, baca dulu docs/handoff.md dan
+checklist-progres.md"*.

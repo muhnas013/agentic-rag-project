@@ -9,8 +9,8 @@
 - [x] RAG minimal berfungsi
 - [x] Integrasi Ollama selesai
 - [x] Integrasi PostgreSQL + pgvector selesai
-- [ ] OCR tool selesai
-- [!] SQL tool selesai (tool + validasi jalan; data sample PRD Fase 5 belum dibuat)
+- [x] OCR tool selesai
+- [x] SQL tool selesai
 - [ ] Frontend chat basic selesai
 - [x] Agent orchestrator dasar selesai
 - [ ] Pengujian end-to-end dilakukan
@@ -55,13 +55,13 @@
 - [x] Uji multi-tool workflow
 
 ## Fase 5: OCR & Data Terstruktur
-- [ ] Setup PaddleOCR
-- [ ] Buat OCR tool untuk gambar / dokumen image
-- [ ] Uji ekstraksi teks dari gambar
-- [ ] Integrasikan OCR dengan agent
-- [ ] Setup PostgreSQL schema data sample
-- [ ] Buat SQL tool untuk query data
-- [ ] Uji query SQL via agent
+- [x] Setup PaddleOCR
+- [x] Buat OCR tool untuk gambar / dokumen image
+- [x] Uji ekstraksi teks dari gambar
+- [x] Integrasikan OCR dengan agent
+- [x] Setup PostgreSQL schema data sample
+- [x] Buat SQL tool untuk query data
+- [!] Uji query SQL via agent (tool terbukti benar; llama3.2:3b gagal menyusun query — lihat log)
 
 ## Fase 6: Frontend
 - [ ] Setup Vite + React/Vue project
@@ -75,7 +75,7 @@
 ## Fase 7: Testing & Stabilitas
 - [ ] Uji endpoint backend
 - [x] Uji flow RAG end-to-end (retrieval, jawaban, dan prompt injection)
-- [ ] Uji OCR end-to-end
+- [x] Uji OCR end-to-end
 - [ ] Uji SQL query end-to-end
 - [ ] Uji performance dasar
 - [ ] Perbaiki bug yang ditemukan
@@ -567,6 +567,101 @@ Deteksi berbasis pola dapat dielakkan susunan kalimat baru. Ini menaikkan
 ambang, bukan menutup celah; disebutkan apa adanya di D-13.
 
 Jumlah test: 51 -> 70, semuanya lulus.
+
+### Fase 5 — OCR & Data Terstruktur · selesai, kecuali uji SQL via Agent (22 Sep 2026)
+
+**PaddleOCR berjalan.** `paddlepaddle` 3.3.1 + `paddleocr` 3.7.0 di CPU
+(`OCR_USE_GPU=false`), sesuai keputusan D-02 agar tidak berebut VRAM.
+
+Tiga hambatan pemasangan, semuanya pustaka sistem yang tidak ada di
+`python:3.12-slim` dan tidak disebut dokumentasi PaddleOCR:
+
+| Hilang | Dibutuhkan oleh | Gejalanya |
+|--------|-----------------|-----------|
+| `libgomp.so.1` | paddlepaddle (OpenMP) | `import paddle` gagal |
+| `libGL.so.1` | OpenCV, dependency PaddleOCR | `import cv2` gagal |
+| `libglib2.0-0` | OpenCV | idem |
+
+Ditambah satu galat inferensi: `ConvertPirAttribute2RuntimeAttribute not
+support` dari backend oneDNN. Diatasi dengan `enable_mkldnn=False` —
+hasilnya benar, hanya sedikit lebih lambat.
+
+**Cache model diberi volume sendiri** (`paddle_models` → `/home/appuser/.paddlex`)
+agar model ±20 MB tidak diunduh ulang tiap build. Direktorinya dibuat di
+Dockerfile lebih dulu: Docker mewarisi kepemilikan dari image saat membuat
+named volume, dan tanpa langkah itu volume-nya lahir milik root sehingga
+`appuser` gagal menulis. Gejalanya menyesatkan — terbaca sebagai
+"PaddleOCR tidak tersedia", seolah pustakanya tidak terpasang.
+
+**Temuan terpenting: hasil OCR mentah merusak kaitan label dan nilai.**
+PaddleOCR mengembalikan tiap kotak teks terpisah, sehingga pada struk
+"TOTAL" dan "366300" datang sebagai dua entri. Digabung dengan baris baru,
+kaitannya hilang:
+
+```
+TOTAL          ->  TOTAL  366300
+366300             Tunai  400000
+Tunai              Kembali  33700
+400000
+```
+
+Ditambahkan `susun_baris()` yang merangkai ulang potongan berdasarkan
+koordinatnya: yang pusat vertikalnya berdekatan digabung dan diurutkan dari
+kiri ke kanan. Toleransinya mengikuti tinggi huruf, bukan angka mati, supaya
+tetap benar pada gambar beresolusi berbeda.
+
+Dampaknya langsung terukur: sebelum perbaikan, "berapa PPN" dan "berapa
+kembalian" dijawab salah; sesudahnya keduanya benar (36.300 dan 33.700).
+
+**Uji OCR end-to-end (PRD §16)**
+
+| Kriteria PRD | Hasil |
+|--------------|-------|
+| Agent memilih OCR | Ya, 3/3 |
+| PaddleOCR berhasil membaca teks | Ya — 18 baris, keyakinan minimum 0,93 |
+| Nilai yang terbaca sesuai gambar | Ya, seluruhnya persis |
+| LLM menjawab berdasarkan hasil OCR | Sebagian: "PPN" dan "kembalian" benar, **"total transaksi" dijawab 400.000** (nilai "Tunai") padahal `TOTAL 366300` terbaca utuh |
+
+Dugaan bahwa kesalahan terakhir berasal dari riwayat sesi yang tercemar
+**diuji dan terbukti salah**: dengan sesi bersih hasilnya tetap sama 3/3.
+Penyebabnya murni kemampuan model.
+
+**Data sample SQL.** `docker/postgres/init/03-sample-data.sql` membuat tabel
+`pegawai` (12 baris) dan `pengajuan_cuti` (24 baris). Temanya disambungkan
+dengan dokumen contoh yang sudah diindeks, sehingga Agent bisa diuji pada
+pertanyaan yang menuntut dua tool: aturan cutinya dari dokumen, realisasinya
+dari tabel. Berkasnya idempoten dan otomatis dijalankan pada database baru.
+Kedua tabel didaftarkan ke `SQL_AGENT_ALLOWED_TABLES`; diverifikasi
+`rag_readonly` bisa membacanya dan tetap ditolak saat `DELETE`.
+
+**Uji SQL via Agent gagal — dan penyebabnya bukan pada tool.**
+`llama3.2:3b` menuliskan pemanggilan tool sebagai teks biasa di dalam
+jawaban, bukan lewat mekanisme tool calling:
+
+```
+{"name":"SQL_Query","parameters":{"query":"SELECT COUNT(*) FROM pegawai WHERE bagian = "Keuangan""}}
+```
+
+JSON-nya bahkan rusak. Saat sesekali benar memanggil tool, query-nya salah:
+`status = dijajukan` — salah ketik, dan ditulis sebagai nama kolom alih-alih
+string.
+
+Dugaan bahwa deskripsi tool yang memanjang (dari 2 menjadi 4 tabel) menjadi
+penyebabnya diuji: deskripsi diringkas, hasilnya hanya naik dari 0/3 ke 1/3.
+Bukan itu akar masalahnya.
+
+**Bukti pemutus:** ketiga query yang sama dijalankan langsung ke `sql_query`
+tanpa melewati model memberi jawaban yang tepat — 3 pegawai Keuangan,
+3 pengajuan berstatus diajukan, dan Dewi Lestari untuk cuti melahirkan.
+Tool, validasi, allowlist, dan data sample semuanya benar. Satu-satunya
+mata rantai yang putus adalah kemampuan model menyusun SQL dan memanggil
+tool.
+
+Jumlah test: 70 -> 83, semuanya lulus.
+
+**Blocker:** `llama3.2:3b` tidak memenuhi syarat PRD §16 untuk SQL Test.
+Batasan ini sudah dicatat di D-13 dan kini terbukti memblokir satu kriteria
+pengujian PRD secara langsung, bukan sekadar menurunkan mutu.
 
 ---
 

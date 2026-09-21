@@ -23,6 +23,12 @@ langchain-text-splitters>=0.3,<1.0 # RecursiveCharacterTextSplitter
 pypdf>=5.0,<7.0                    # pembaca PDF
 httpx>=0.27,<1.0                   # klien HTTP ke Ollama / provider API
 
+# --- OCR (PRD §4.2 dan §10) ---
+# Dijalankan di CPU (OCR_USE_GPU=false) agar tidak berebut VRAM dengan LLM;
+# dengan 24 thread, OCR di CPU masih cepat.
+paddlepaddle>=3.0,<4.0
+paddleocr>=3.0,<4.0
+
 # --- Validasi upload (PRD §18 - File Upload Security) ---
 python-magic>=0.4.27,<1.0          # deteksi MIME dari isi file, butuh libmagic
 

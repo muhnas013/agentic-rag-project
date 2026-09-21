@@ -123,24 +123,18 @@ def _format_hasil(kolom: list[str], baris: list[tuple]) -> str:
 
 @tool("SQL_Query")
 def sql_query(query: str) -> str:
-    """Jalankan satu perintah SELECT PostgreSQL untuk mengambil data terstruktur.
+    """Jalankan satu perintah SELECT PostgreSQL untuk mengambil data.
 
-    Gunakan untuk pertanyaan yang membutuhkan hitungan, agregasi, atau daftar
-    baris — misalnya berapa banyak pertanyaan masuk hari ini, atau dokumen apa
-    saja yang sudah tersimpan.
+    Pakai untuk hitungan, agregasi, atau daftar baris dari tabel berikut:
 
-    Tabel yang tersedia:
-
+      pegawai(id, nama, nip, bagian, jabatan, tanggal_masuk)
+      pengajuan_cuti(id, pegawai_id, jenis, tanggal_mulai, tanggal_selesai,
+                     jumlah_hari, status, dibuat_pada)
       chat_history(id, session_id, role, message, created_at)
-        Satu baris = satu pesan. Kolom role berisi 'user' atau 'assistant'.
+      documents(id, filename, content, metadata, created_at)
 
-      documents(id, filename, content, embedding, metadata, created_at)
-        Satu baris = satu POTONGAN dokumen, bukan satu dokumen utuh. Satu
-        berkas dapat menghasilkan banyak baris dengan filename yang sama.
-        Untuk menghitung jumlah dokumen pakai COUNT(DISTINCT filename);
-        COUNT(*) menghasilkan jumlah potongan.
-
-    Hanya SELECT yang diizinkan. Jangan memakai titik koma atau komentar.
+    Catatan: satu baris `documents` adalah satu potongan, bukan satu berkas.
+    Hanya SELECT. Tanpa titik koma dan tanpa komentar.
 
     Args:
         query: Satu perintah SELECT PostgreSQL yang lengkap.

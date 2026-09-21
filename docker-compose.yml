@@ -48,12 +48,16 @@ services:
       # Mount kode sumber agar hot-reload Uvicorn bekerja (keputusan D-01).
       - ./backend:/app/backend:ro
       - ./storage:/app/storage
+      # Model PaddleOCR (±20 MB) diunduh saat pertama dipakai. Volume ini
+      # membuatnya bertahan, sehingga build ulang tidak mengunduh lagi.
+      - paddle_models:/home/appuser/.paddlex
     depends_on:
       postgres:
         condition: service_healthy
 
 volumes:
   postgres_data:
+  paddle_models:
 
 networks:
   default:

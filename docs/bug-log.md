@@ -258,3 +258,34 @@ mempertahankan 10/10 untuk "benar dalam 3 teratas".
 ("bekerja"/"pekerjaan"), dan ditambahkan satu test yang **mengunci
 ketidakkonsistenan itu apa adanya**, sehingga bila PostgreSQL kelak
 memperbaikinya, catatan di D-16 ikut ketahuan perlu diperbarui.
+
+### B-27 ✅ Tabel PDF hancur saat diekstraksi
+**Gejala.** Pertanyaan "siapa yang menyetujui pengadaan senilai 150 juta"
+dijawab dari dokumen yang **salah**, padahal dokumen yang benar ada di
+peringkat dua hasil pencarian.
+**Sebab berlapis dua.** Mode ekstraksi bawaan pypdf meratakan halaman menjadi
+satu aliran teks, sehingga tabel kewenangan berubah menjadi:
+
+```
+Nilai pengadaan Pejabat yang
+menyetujui
+Waktu maksimal
+persetujuan
+Di atas Rp 10.000.000 sampai Rp
+200.000.000 Sekretaris Dinas 5 hari kerja
+```
+
+Judul kolom terpecah, dan rentang nilainya terpotong dari nama jabatannya.
+Lapisan kedua: `clean_text` **meratakan setiap deret spasi menjadi satu** —
+sehingga andai pun ekstraksinya rapi, kesejajaran kolom tetap hilang di
+langkah berikutnya.
+**Perbaikan.** PDF diekstraksi dengan `extraction_mode="layout"` (dengan
+cadangan ke mode biasa bila gagal), dan `clean_text` menerima
+`pertahankan_tata_letak` yang hanya memotong panjang deret spasi alih-alih
+menghapusnya.
+**Sesudahnya:** potongan yang benar naik dari peringkat 2 ke peringkat 1, dan
+tujuh pertanyaan pemahaman PDF dijawab benar seluruhnya — termasuk empat
+nilai yang harus dibaca dari dalam tabel.
+**Sisa yang tidak tertutup:** penalaran rentang angka ("150 juta masuk baris
+yang mana") tetap gagal. Itu batas model 3B, bukan ekstraksi — potongan yang
+terambil sudah memuat jawabannya.

@@ -107,3 +107,38 @@ class TestFilterRelevant:
         """Pertanyaan yang jawabannya tersebar di beberapa dokumen."""
         chunks = [_chunk(0.6), _chunk(0.55), _chunk(0.5)]
         assert len(ds.filter_relevant(chunks, 0.5)) == 3
+
+
+class TestTataLetakPDF:
+    """Spasi berderet pada PDF bermakna: itulah yang menjaga kolom sejajar.
+
+    `clean_text` semula meratakannya menjadi satu spasi, sehingga kaitan
+    antara sel tabel dan barisnya putus sebelum sampai ke model. Pada
+    pengujian, pertanyaan "siapa yang menyetujui pengadaan 150 juta"
+    karena itu dijawab dari dokumen yang salah.
+    """
+
+    BARIS_TABEL = "Di atas Rp 10.000.000 sampai Rp        Sekretaris Dinas        5 hari kerja"
+
+    def test_kolom_tetap_terpisah_pada_mode_tata_letak(self):
+        hasil = ds.clean_text(self.BARIS_TABEL, pertahankan_tata_letak=True)
+        assert "Rp        Sekretaris" in hasil
+
+    def test_mode_biasa_tetap_meratakan(self):
+        """Teks biasa tidak punya kolom, jadi spasi berlebih hanya memboroskan."""
+        hasil = ds.clean_text(self.BARIS_TABEL, pertahankan_tata_letak=False)
+        assert "Rp Sekretaris" in hasil
+
+    def test_deret_spasi_sangat_panjang_dipotong(self):
+        """Deret panjang tidak menambah kejelasan, hanya memakan jatah potongan."""
+        hasil = ds.clean_text("A" + " " * 60 + "B", pertahankan_tata_letak=True)
+        assert " " * ds.MAKS_SPASI_BERDERET + "B" in hasil
+        assert " " * (ds.MAKS_SPASI_BERDERET + 1) not in hasil
+
+    def test_spasi_di_ujung_baris_tetap_dibuang(self):
+        hasil = ds.clean_text("kolom     \nberikutnya", pertahankan_tata_letak=True)
+        assert "kolom\nberikutnya" == hasil
+
+    def test_baris_kosong_beruntun_tetap_dipadatkan(self):
+        hasil = ds.clean_text("A\n\n\n\n\nB", pertahankan_tata_letak=True)
+        assert hasil == "A\n\nB"

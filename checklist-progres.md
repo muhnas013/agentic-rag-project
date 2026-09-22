@@ -1083,6 +1083,44 @@ perbedaan yang terlihat langsung berdampingan dengan tangkapan akun admin.
 Akun `demo_pembaca` / `rahasia123` (READ_ONLY) dibiarkan ada untuk peragaan
 berikutnya. Hapus lewat SQL bila tidak diperlukan.
 
+### Uji baca PDF · 22 Sep 2026
+
+Diuji atas permintaan: sebuah PDF dua halaman dibuat khusus — pedoman contoh
+berisi enam BAB, dua tabel, dan angka-angka spesifik — lalu diunggah dan
+ditanyakan isinya.
+
+Hasil: **terekstraksi menjadi 5 potongan**, dan dari dua belas pertanyaan,
+sebelas dijawab benar.
+
+| Jenis pertanyaan | Hasil |
+|------------------|-------|
+| Fakta dari paragraf (tanggal berlaku, batas pencatatan, jumlah tim penilai) | Benar seluruhnya |
+| Nilai dari dalam tabel (masa manfaat 4 / 6 / 10 / 12 tahun) | Benar seluruhnya |
+| Informasi yang tidak ada di dokumen | Mengaku tidak menemukan, tidak mengarang |
+| **Penalaran rentang angka** ("150 juta masuk baris mana") | **Gagal** |
+
+**Satu bug nyata ditemukan dan diperbaiki (B-27).** Pertanyaan tentang
+kewenangan persetujuan dijawab dari dokumen yang salah. Penelusuran lewat
+`POST /query` menunjukkan potongan yang benar ada di peringkat dua — jadi
+masalahnya bukan pencarian, melainkan bentuk teksnya.
+
+Tabel PDF ternyata hancur saat diekstraksi: judul kolom terpecah dan rentang
+nilai terpotong dari nama jabatannya. Lebih buruk lagi, `clean_text`
+meratakan setiap deret spasi menjadi satu — sehingga andai ekstraksinya
+rapi pun, kesejajaran kolom tetap hilang di langkah berikutnya. Keduanya
+diperbaiki: ekstraksi memakai mode `layout`, dan perapian teks untuk PDF
+hanya memotong panjang deret spasi, tidak menghapusnya.
+
+Sesudah perbaikan, potongan yang benar naik ke peringkat satu dan tujuh
+pertanyaan lanjutan dijawab benar seluruhnya.
+
+**Yang tetap gagal** hanyalah penalaran rentang angka, dan penyebabnya bukan
+lagi ekstraksi maupun pencarian: potongan yang terambil sudah memuat
+jawabannya, tetapi model 3B tidak menempatkan 150 juta pada baris yang tepat —
+apalagi ketika dokumen lain yang juga membahas pengadaan ikut masuk konteks.
+
+Jumlah test: 144 -> 149, semuanya lulus.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

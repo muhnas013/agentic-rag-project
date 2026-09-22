@@ -230,6 +230,27 @@ def detect_injection(text: str) -> list[str]:
 # --------------------------------------------------------------------------
 
 
+def _teks_halaman_pdf(page) -> str:
+    """Ambil teks satu halaman PDF sambil mempertahankan tata letaknya.
+
+    Mode bawaan pypdf meratakan halaman menjadi satu aliran teks, dan tabel
+    ikut hancur: judul kolom terpecah ke baris sendiri, sementara isi baris
+    menyatu tanpa penanda kolom. Pada pengujian, pertanyaan "siapa yang
+    menyetujui pengadaan 150 juta" karena itu dijawab dari dokumen yang
+    salah — kaitan antara rentang nilai dan nama jabatan sudah putus
+    sebelum sampai ke model.
+
+    Mode `layout` menjaga kolom tetap sejajar dengan spasi, sehingga
+    kaitannya masih terbaca. Bila mode itu gagal atau tidak menghasilkan
+    apa-apa, ekstraksi biasa dipakai sebagai cadangan.
+    """
+    try:
+        teks = page.extract_text(extraction_mode="layout") or ""
+    except Exception:  # pypdf lama, atau halaman yang tidak terdukung
+        teks = ""
+    return teks if teks.strip() else (page.extract_text() or "")
+
+
 def extract_text(path: Path, extension: str) -> str:
     """Ambil teks dari berkas. Gambar ditangani OCR Tool pada Fase 5."""
     if extension == ".pdf":
@@ -237,7 +258,7 @@ def extract_text(path: Path, extension: str) -> str:
 
         try:
             reader = PdfReader(str(path))
-            pages = [page.extract_text() or "" for page in reader.pages]
+            pages = [_teks_halaman_pdf(page) for page in reader.pages]
         except Exception as exc:
             raise DocumentProcessingError(f"PDF gagal dibaca: {exc}") from exc
 
@@ -257,15 +278,33 @@ def extract_text(path: Path, extension: str) -> str:
     )
 
 
-def clean_text(text: str) -> str:
+# Spasi berderet lebih panjang dari ini tidak menambah kejelasan kolom,
+# hanya memakan jatah potongan.
+MAKS_SPASI_BERDERET = 8
+
+
+def clean_text(text: str, pertahankan_tata_letak: bool = False) -> str:
     """Rapikan teks mentah sebelum dipotong.
 
-    Spasi berlebih dan baris kosong beruntun dari hasil ekstraksi PDF membuat
-    potongan terisi karakter kosong, sehingga jatah konteks terbuang.
+    Spasi berlebih dan baris kosong beruntun membuat potongan terisi
+    karakter kosong, sehingga jatah konteks terbuang.
+
+    Pada PDF, spasi berderet justru **bermakna**: itulah yang menjaga kolom
+    tabel tetap sejajar. Meratakannya menjadi satu spasi memutus kaitan
+    antara sel dan barisnya — persis kekeliruan yang sempat membuat sebuah
+    pertanyaan dijawab dari dokumen yang salah. Karena itu untuk PDF
+    deretnya hanya dipotong panjangnya, bukan dihapus.
     """
     text = unicodedata.normalize("NFKC", text)
     text = text.replace("\x00", "")
-    text = re.sub(r"[ \t]+", " ", text)
+
+    if pertahankan_tata_letak:
+        text = re.sub(r" {%d,}" % (MAKS_SPASI_BERDERET + 1), " " * MAKS_SPASI_BERDERET, text)
+        text = re.sub(r"\t+", " ", text)
+    else:
+        text = re.sub(r"[ \t]+", " ", text)
+
+    text = re.sub(r"[ \t]+\n", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
@@ -297,7 +336,10 @@ async def ingest_document(
 
     Mengembalikan jumlah potongan yang tersimpan.
     """
-    text = clean_text(extract_text(stored_path, extension))
+    text = clean_text(
+        extract_text(stored_path, extension),
+        pertahankan_tata_letak=(extension == ".pdf"),
+    )
     if not text:
         raise DocumentProcessingError("Berkas tidak memuat teks apa pun.")
 

@@ -336,3 +336,42 @@ Lapis ketiga diperlukan karena dua yang pertama ternyata tidak cukup: model
 berarti unggahan terakhir — ia malah meminta klarifikasi. Lebih jujur
 daripada sebelumnya, tetapi belum mulus. Menyebut nama berkas selalu tepat,
 jadi namanya disiapkan sistem alih-alih dibebankan kepada pengguna.
+
+### B-30 ✅ Gambar tanpa tulisan dilaporkan sebagai "gagal membaca"
+**Gejala.** Dilaporkan pengguna: mengunggah `img.jpeg` (gambar garis sebuah
+mobil sport, tanpa satu pun tulisan) dan bertanya isinya, jawabannya
+"Maaf, gagal membaca teks dari gambar img.jpeg."
+
+**Sebab.** Bukan OCR-nya yang rusak — struk uji tetap terbaca 18 baris
+dengan benar. Yang salah penanganan hasil nol di `baca_teks()`:
+
+```python
+polys = r.get("rec_polys") or r.get("rec_boxes") or r.get("dt_polys") or []
+```
+
+PaddleOCR mengembalikan `rec_boxes` sebagai `numpy.ndarray`. Pada array,
+`a or b` memanggil `bool(a)` — dan itu **melempar ValueError**, bukan
+menghasilkan False:
+
+```
+ValueError: The truth value of an empty array is ambiguous.
+```
+
+Saat tidak ada teks terdeteksi, `rec_polys` kosong (list, falsy) sehingga
+`or` beralih ke `rec_boxes` yang berupa array kosong, dan seluruh pembacaan
+gagal di situ. Jalur "tidak ada teks yang terbaca" yang sudah ada di
+`image_ocr()` tidak pernah tercapai.
+
+**Mengapa lolos dari 160 test.** `OcrPalsu` pada `test_ocr_tool.py` hanya
+pernah mengembalikan `rec_texts` dan `rec_scores`, keduanya list biasa —
+medan yang justru bermasalah tidak pernah ada di tiruannya. Bug ini hanya
+bisa muncul pada bentuk data yang tidak ditiru satu test pun.
+
+**Perbaikan.** Rantai `or` diganti perulangan eksplisit (`_koordinat()`)
+yang memeriksa `is not None` dan `len() > 0`, sehingga tidak pernah menguji
+kebenaran sebuah array. `_ke_daftar()` menyeragamkan medan lain. Ditambah
+kelas test `TestMedanNumpy` yang memakai array sungguhan — ketiganya
+terbukti gagal pada kode lama dan lulus pada kode baru.
+
+**Hasil.** Gambar mobil itu kini dijawab "Tidak ada teks yang terbaca pada
+gambar itu", dan struk uji tetap terbaca lengkap.

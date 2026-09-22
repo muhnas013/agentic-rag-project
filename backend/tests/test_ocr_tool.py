@@ -152,3 +152,67 @@ class TestSusunBaris:
         polys = [_poly(24, 460, 90, 475), _poly(24, 358, 70, 373),
                  _poly(23, 424, 70, 442)]
         assert susun_baris(teks, polys) == ["TOTAL", "Tunai", "Kembali"]
+
+
+class TestMedanNumpy:
+    """PaddleOCR mengembalikan sebagian medan sebagai `numpy.ndarray`.
+
+    `OcrPalsu` di atas hanya memakai list, dan justru itulah sebabnya B-30
+    lolos dari seluruh test sampai ditemukan pengguna: pada array, `a or b`
+    melempar ValueError alih-alih menghasilkan False. Kelas ini memakai
+    array sungguhan supaya jalur itu ikut teruji.
+    """
+
+    class OcrNumpy:
+        def __init__(self, hasil):
+            self._hasil = [hasil]
+
+        def predict(self, _path):
+            return self._hasil
+
+    def _pasang(self, monkeypatch, hasil):
+        monkeypatch.setattr(ocr_tool, "_muat_ocr", lambda: self.OcrNumpy(hasil))
+
+    def test_gambar_tanpa_teks_tidak_menggagalkan_pembacaan(
+        self, monkeypatch, tmp_path
+    ):
+        """B-30: gambar tanpa tulisan sama sekali (mis. foto atau gambar).
+
+        Deteksi nol adalah hasil yang sah, bukan kegagalan. Sebelum
+        perbaikan, `rec_boxes` berupa array kosong membuat seluruh
+        pembacaan melempar ValueError, dan pengguna menerima "gagal
+        membaca" padahal jawabannya semestinya "tidak ada teks".
+        """
+        import numpy as np
+
+        self._pasang(monkeypatch, {
+            "rec_texts": [],
+            "rec_scores": [],
+            "rec_polys": [],
+            "rec_boxes": np.empty((0,)),
+        })
+        assert baca_teks(tmp_path / "mobil.jpeg") == ([], 0.0)
+
+    def test_rec_boxes_berupa_array_tetap_dipakai(self, monkeypatch, tmp_path):
+        """Bila `rec_polys` kosong, koordinat diambil dari `rec_boxes`."""
+        import numpy as np
+
+        self._pasang(monkeypatch, {
+            "rec_texts": ["TOTAL", "366300"],
+            "rec_scores": [0.99, 0.98],
+            "rec_polys": [],
+            "rec_boxes": np.array([[10, 100, 60, 120], [200, 100, 260, 120]]),
+        })
+        baris, _ = baca_teks(tmp_path / "struk.png")
+        assert baris == ["TOTAL  366300"]
+
+    def test_rec_polys_berupa_array_tetap_dipakai(self, monkeypatch, tmp_path):
+        import numpy as np
+
+        self._pasang(monkeypatch, {
+            "rec_texts": ["A", "B"],
+            "rec_scores": [0.9, 0.9],
+            "rec_polys": np.array([_poly(10, 10, 40, 30), _poly(10, 90, 40, 110)]),
+        })
+        baris, _ = baca_teks(tmp_path / "x.png")
+        assert baris == ["A", "B"]

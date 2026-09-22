@@ -172,6 +172,29 @@ def susun_baris(teks: list[str], polys: list[Any]) -> list[str]:
     return ["  ".join(t for _, t in sorted(kel)) for kel in baris]
 
 
+def _ke_daftar(nilai: Any) -> list[Any]:
+    """Seragamkan medan hasil PaddleOCR menjadi list biasa."""
+    if nilai is None:
+        return []
+    return list(nilai)
+
+
+def _koordinat(r: Any) -> list[Any]:
+    """Ambil koordinat kotak teks dari medan mana pun yang terisi.
+
+    Ditulis sebagai perulangan, bukan rantai `or`, karena PaddleOCR
+    mengembalikan sebagian medan ini sebagai `numpy.ndarray`. Menguji
+    kebenaran sebuah array melempar ValueError alih-alih menghasilkan
+    False, sehingga `a or b` justru menggagalkan seluruh pembacaan —
+    lihat B-30.
+    """
+    for kunci in ("rec_polys", "rec_boxes", "dt_polys"):
+        kandidat = r.get(kunci)
+        if kandidat is not None and len(kandidat) > 0:
+            return list(kandidat)
+    return []
+
+
 def baca_teks(berkas: Path) -> tuple[list[str], float]:
     """Jalankan OCR, kembalikan baris teks dan keyakinan terendahnya.
 
@@ -183,15 +206,15 @@ def baca_teks(berkas: Path) -> tuple[list[str], float]:
         return [], 0.0
 
     r = hasil[0]
-    teks = r.get("rec_texts") or []
-    skor = r.get("rec_scores") or []
-    polys = r.get("rec_polys") or r.get("rec_boxes") or r.get("dt_polys") or []
+    teks = _ke_daftar(r.get("rec_texts"))
+    skor = _ke_daftar(r.get("rec_scores"))
+    polys = _koordinat(r)
 
     # Baris yang meragukan dibuang lebih dulu, berikut koordinatnya, agar
     # tidak ikut membentuk tata letak.
     simpan = [
         (t, s, p)
-        for t, s, p in zip(teks, skor, polys or [None] * len(teks))
+        for t, s, p in zip(teks, skor, polys if polys else [None] * len(teks))
         if s >= AMBANG_KEYAKINAN and t.strip()
     ]
     dibuang = len(teks) - len(simpan)

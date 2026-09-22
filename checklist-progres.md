@@ -1232,6 +1232,53 @@ jalur embedding keduanya masih utuh.
 Jumlah test: 160, semuanya lulus (tidak ada test yang menyentuh provider
 yang dihapus).
 
+### Laporan pengguna: unggah gambar tanpa tulisan · 22 Sep 2026
+
+Dilaporkan: mengunggah `img.jpeg` lalu bertanya isinya, jawabannya
+"Maaf, gagal membaca teks dari gambar img.jpeg."
+
+**Gambarnya memang tidak memuat tulisan** — gambar garis sebuah mobil sport.
+Jadi deteksi nol adalah hasil yang benar. Yang salah cara kode menanganinya.
+
+**B-30.** `baca_teks()` mengambil koordinat lewat rantai
+`rec_polys or rec_boxes or dt_polys or []`. PaddleOCR mengembalikan
+`rec_boxes` sebagai `numpy.ndarray`, dan pada array `a or b` memanggil
+`bool(a)` yang **melempar ValueError**, bukan menghasilkan False. Saat tidak
+ada teks, `rec_polys` kosong sehingga `or` beralih ke array kosong itu dan
+seluruh pembacaan gagal — jalur "tidak ada teks yang terbaca" yang sudah
+ada di `image_ocr()` tidak pernah tercapai.
+
+**Yang patut dicatat: 160 test tidak menangkapnya.** `OcrPalsu` di
+`test_ocr_tool.py` hanya pernah mengembalikan `rec_texts` dan `rec_scores`,
+keduanya list biasa. Medan yang justru bermasalah tidak pernah ada di
+tiruannya, jadi bentuk datanya tidak pernah diuji sama sekali. Tiruan yang
+lebih rapi daripada kenyataan menyembunyikan bug, bukan mencegahnya.
+
+Diperbaiki dengan `_koordinat()` — perulangan eksplisit yang memeriksa
+`is not None` dan `len() > 0`, tidak pernah menguji kebenaran array — dan
+`_ke_daftar()` untuk medan lain. Ditambah kelas test `TestMedanNumpy` yang
+memakai array sungguhan; ketiganya dibuktikan gagal pada kode lama sebelum
+dinyatakan mengunci.
+
+**Diuji terhadap sistem hidup:** gambar mobil itu kini dijawab "Tidak ada
+teks yang terbaca pada gambar itu", dan struk uji tetap terbaca 18 baris
+lengkap dengan tata letak label-nilai utuh — tidak ada regresi.
+
+Jumlah test: 160 -> 163, semuanya lulus.
+
+### Catatan: build ulang image backend sempat gagal · 22 Sep 2026
+
+Setelah `requirements.txt` berubah (D-17), `docker compose up -d --build`
+gagal pada tahap `pip install` setelah 27 menit. Diselidiki dengan
+menjalankan ulang tahap itu di container bersih, dua kali: apa adanya, dan
+dengan `pip install --upgrade pip` lebih dulu persis seperti Dockerfile.
+**Keduanya berhasil (exit 0)**, resolusi penuh dapat, dan `langchain-openai`
+memang tidak ikut terpasang — tidak ada paket lain yang menariknya.
+
+Jadi kegagalannya transien, bukan cacat pada `requirements.txt`. Image lama
+tetap dipakai selama itu dan aplikasi berjalan normal, karena kode di-mount
+sebagai volume sehingga perubahan kode tetap berlaku tanpa build ulang.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

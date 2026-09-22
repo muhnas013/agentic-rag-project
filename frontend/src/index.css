@@ -3,6 +3,40 @@
 /* Tailwind v4 membaca token tema dari CSS, bukan tailwind.config.js. */
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  /* Warna merek dipusatkan di sini supaya nuansanya bisa digeser dari satu
+     tempat, bukan dicari satu per satu di kelas utilitas tiap komponen. */
+  --color-merek-50: oklch(0.97 0.014 275);
+  --color-merek-100: oklch(0.93 0.032 275);
+  --color-merek-200: oklch(0.87 0.056 275);
+  --color-merek-500: oklch(0.6 0.19 275);
+  --color-merek-600: oklch(0.54 0.21 275);
+  --color-merek-700: oklch(0.47 0.2 275);
+
+  --animate-muncul: muncul 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-naik: naik 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes muncul {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes naik {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 html,
@@ -11,11 +45,53 @@ body,
   height: 100%;
 }
 
-/* Scrollbar yang tidak mencolok di daftar pesan. */
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Scrollbar yang tidak mencolok di daftar pesan: tipis, dan baru terlihat
+   ketika area yang memuatnya disentuh tetikus. */
+.scroll-halus {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.2s;
+}
+.scroll-halus:hover {
+  scrollbar-color: rgb(148 163 184 / 0.45) transparent;
+}
 .scroll-halus::-webkit-scrollbar {
   width: 8px;
 }
 .scroll-halus::-webkit-scrollbar-thumb {
-  background-color: rgb(148 163 184 / 0.4);
+  background-color: transparent;
   border-radius: 9999px;
+  transition: background-color 0.2s;
+}
+.scroll-halus:hover::-webkit-scrollbar-thumb {
+  background-color: rgb(148 163 184 / 0.45);
+}
+
+/* Cincin fokus yang seragam untuk kendali yang bisa diklik. Ditulis sekali
+   di sini supaya tidak ada tombol yang terlewat — fokus keyboard yang tak
+   terlihat membuat antarmuka tidak bisa dipakai tanpa tetikus, dan itu
+   paling mudah terjadi karena lupa, bukan karena sengaja.
+
+   Kolom isian sengaja dikecualikan: masing-masing sudah punya penanda fokus
+   sendiri, dan menumpuknya menghasilkan dua cincin sekaligus. */
+a:focus-visible,
+button:focus-visible,
+summary:focus-visible,
+[role="button"]:focus-visible {
+  outline: 2px solid var(--color-merek-500);
+  outline-offset: 2px;
+  border-radius: 0.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

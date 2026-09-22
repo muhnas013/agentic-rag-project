@@ -4,9 +4,15 @@
  * Memuat riwayat sesi dari backend saat dibuka, mengirim pertanyaan ke
  * Agent, dan menampilkan tool yang dipakai beserta potongan dokumen
  * sumbernya.
+ *
+ * Lebar bacaan dibatasi di dalam sini, bukan oleh induknya: daerah gulir
+ * dan bilah masukan sama-sama membentang penuh, dan hanya isinya yang
+ * dipusatkan. Membatasi induknya membuat bilah masukan tampak sebagai
+ * pulau terpisah dengan celah di kiri dan kanannya.
  */
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ambilRiwayat, kirimPesan } from '../services/api'
+import { Lambang } from './Merek'
 import MessageBubble from './MessageBubble'
 import UploadButton from './UploadButton'
 
@@ -19,9 +25,21 @@ import UploadButton from './UploadButton'
  * sudah terbukti dirutekan dengan benar.
  */
 const CONTOH = [
-  'Menurut dokumen kebijakan, berapa lama masa retensi dokumen kepegawaian?',
-  'Ada berapa pegawai di bagian Keuangan?',
-  'Berapa total transaksi pada struk-uji.png?',
+  {
+    ikon: '📄',
+    tool: 'RAG_Search',
+    teks: 'Menurut dokumen kebijakan, berapa lama masa retensi dokumen kepegawaian?',
+  },
+  {
+    ikon: '🗄',
+    tool: 'SQL_Query',
+    teks: 'Ada berapa pegawai di bagian Keuangan?',
+  },
+  {
+    ikon: '🖼',
+    tool: 'Image_OCR',
+    teks: 'Berapa total transaksi pada struk-uji.png?',
+  },
 ]
 
 export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }) {
@@ -118,66 +136,84 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
   }
 
   return (
-    <div className="flex h-full flex-col">
-      <div className="scroll-halus flex-1 space-y-4 overflow-y-auto px-4 py-6 sm:px-6">
-        {memuatRiwayat && (
-          <p className="text-center text-sm text-slate-400">Memuat riwayat…</p>
-        )}
-
-        {!memuatRiwayat && pesan.length === 0 && (
-          <div className="mx-auto max-w-lg pt-10 text-center">
-            <h2 className="text-lg font-semibold text-slate-700">
-              Tanyakan apa saja tentang dokumen dan data Anda
-            </h2>
-            <p className="mt-2 text-sm text-slate-500">
-              Agent memilih sendiri caranya: mencari di dokumen, membaca gambar,
-              atau mengambil data dari database.
-            </p>
-            <div className="mt-6 space-y-2">
-              {CONTOH.map((contoh) => (
-                <button
-                  key={contoh}
-                  onClick={() => kirim(contoh)}
-                  className="block w-full rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-left text-sm text-slate-600 transition hover:border-indigo-300 hover:text-indigo-700"
-                >
-                  {contoh}
-                </button>
-              ))}
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="scroll-halus flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
+          {memuatRiwayat && (
+            <div className="flex justify-center pt-10">
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-merek-500" />
             </div>
-          </div>
-        )}
+          )}
 
-        {pesan.map((m) =>
-          m.role === 'system' && !m.error ? (
-            <p
-              key={m.id}
-              className="mx-auto max-w-2xl rounded-lg bg-emerald-50 px-4 py-2 text-center text-xs text-emerald-800"
-            >
-              {m.content}
-            </p>
-          ) : (
-            <MessageBubble key={m.id} message={m} />
-          ),
-        )}
+          {!memuatRiwayat && pesan.length === 0 && (
+            <div className="flex min-h-[calc(100vh-16rem)] flex-col items-center justify-center text-center">
+              <Lambang ukuran="besar" />
+              <h2 className="mt-5 text-xl font-semibold tracking-tight text-slate-800">
+                Tanyakan apa saja tentang dokumen dan data Anda
+              </h2>
+              <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
+                Agent memilih sendiri caranya: mencari di dokumen, membaca
+                gambar, atau mengambil data dari database.
+              </p>
 
-        {menunggu && (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
-              <span className="flex gap-1">
-                {[0, 150, 300].map((jeda) => (
-                  <span
-                    key={jeda}
-                    style={{ animationDelay: `${jeda}ms` }}
-                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-slate-400"
-                  />
+              <div className="mt-7 grid w-full max-w-xl gap-2.5 sm:grid-cols-3">
+                {CONTOH.map((contoh) => (
+                  <button
+                    key={contoh.teks}
+                    onClick={() => kirim(contoh.teks)}
+                    className="group flex h-full flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-merek-200 hover:shadow-md"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <span aria-hidden className="text-base leading-none">
+                        {contoh.ikon}
+                      </span>
+                      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 transition group-hover:text-merek-600">
+                        {contoh.tool}
+                      </span>
+                    </span>
+                    <span className="text-[13px] leading-snug text-slate-600 transition group-hover:text-slate-900">
+                      {contoh.teks}
+                    </span>
+                  </button>
                 ))}
-              </span>
-              Agent sedang bekerja…
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div ref={ujungRef} />
+          {pesan.map((m) =>
+            m.role === 'system' && !m.error ? (
+              <p
+                key={m.id}
+                className="animate-muncul mx-auto flex w-fit max-w-xl items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs text-emerald-800"
+              >
+                <span aria-hidden>✓</span>
+                {m.content}
+              </p>
+            ) : (
+              <MessageBubble key={m.id} message={m} />
+            ),
+          )}
+
+          {menunggu && (
+            <div className="animate-muncul flex items-start gap-2.5">
+              <Lambang />
+              <div className="flex items-center gap-2 rounded-2xl rounded-tl-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
+                <span className="flex gap-1">
+                  {[0, 150, 300].map((jeda) => (
+                    <span
+                      key={jeda}
+                      style={{ animationDelay: `${jeda}ms` }}
+                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-merek-500/70"
+                    />
+                  ))}
+                </span>
+                Agent sedang bekerja…
+              </div>
+            </div>
+          )}
+
+          <div ref={ujungRef} />
+        </div>
       </div>
 
       <form
@@ -185,33 +221,48 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
           e.preventDefault()
           kirim(masukan)
         }}
-        className="border-t border-slate-200 bg-white px-4 py-3 sm:px-6"
+        className="shrink-0 border-t border-slate-200 bg-white/85 py-3 backdrop-blur"
       >
-        <div className="mx-auto flex max-w-3xl items-center gap-2">
-          {/* READ_ONLY tidak berwenang mengunggah; tombolnya disembunyikan
-              supaya tidak menawarkan aksi yang pasti ditolak 403. */}
-          {peran !== 'READ_ONLY' && (
-          <UploadButton
-            nonaktif={menunggu}
-            onSelesai={tanganiUnggahan}
-            onGagal={(msg) => tambah({ role: 'system', content: msg, error: true })}
-          />
-          )}
-          <input
-            ref={inputRef}
-            value={masukan}
-            onChange={(e) => setMasukan(e.target.value)}
-            placeholder="Tulis pertanyaan…"
-            disabled={menunggu}
-            className="h-10 flex-1 rounded-lg border border-slate-300 px-3 text-sm outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 disabled:bg-slate-50"
-          />
-          <button
-            type="submit"
-            disabled={menunggu || !masukan.trim()}
-            className="h-10 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-          >
-            Kirim
-          </button>
+        {/* Padding mendatarnya sengaja sama persis dengan daerah pesan di
+            atas, sehingga tepi kotak masukan segaris dengan tepi gelembung
+            percakapan. Bila berbeda sedikit saja, keduanya terbaca sebagai
+            dua kolom yang tidak berhubungan. */}
+        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
+          {/* Cincin fokus dipasang pada pembungkusnya, bukan pada kolom teks
+              sendiri, supaya tombol lampiran dan kirim terbaca sebagai satu
+              kendali bersama kolomnya. */}
+          <div className="flex items-center gap-2 rounded-2xl border border-slate-300 bg-white p-1.5 shadow-sm transition focus-within:border-merek-400 focus-within:ring-4 focus-within:ring-merek-100">
+            {/* READ_ONLY tidak berwenang mengunggah; tombolnya disembunyikan
+                supaya tidak menawarkan aksi yang pasti ditolak 403. */}
+            {peran !== 'READ_ONLY' && (
+              <UploadButton
+                nonaktif={menunggu}
+                onSelesai={tanganiUnggahan}
+                onGagal={(msg) => tambah({ role: 'system', content: msg, error: true })}
+              />
+            )}
+            <input
+              ref={inputRef}
+              value={masukan}
+              onChange={(e) => setMasukan(e.target.value)}
+              placeholder="Tulis pertanyaan…"
+              disabled={menunggu}
+              className="h-9 min-w-0 flex-1 bg-transparent px-2 text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
+            />
+            <button
+              type="submit"
+              disabled={menunggu || !masukan.trim()}
+              title="Kirim"
+              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-merek-600 px-3.5 text-sm font-medium text-white shadow-sm transition hover:bg-merek-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
+            >
+              <span className="hidden sm:inline">Kirim</span>
+              <span aria-hidden>↑</span>
+            </button>
+          </div>
+          <p className="mt-2 text-center text-[11px] text-slate-400">
+            Jawaban disusun model lokal dari dokumen Anda — periksa kembali
+            angka dan tanggal sebelum dipakai.
+          </p>
         </div>
       </form>
     </div>

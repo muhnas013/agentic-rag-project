@@ -1,8 +1,14 @@
 /**
  * Kerangka halaman: layar masuk, atau header status + antarmuka percakapan.
+ *
+ * Header membentang selebar jendela dan bagian kirinya selebar sidebar,
+ * sehingga garis batas keduanya bertemu. Sebelumnya isi header dibatasi
+ * `max-w-3xl` sendiri, dan hasilnya judul maupun tombol mengambang tidak
+ * sejajar dengan apa pun di bawahnya.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ChatBox from './components/ChatBox'
+import Merek from './components/Merek'
 import PanelDokumen from './components/PanelDokumen'
 import Sidebar from './components/Sidebar'
 import LoginForm from './components/LoginForm'
@@ -22,26 +28,42 @@ function IndikatorStatus() {
     ambilKesehatan().then(setStatus).catch((e) => setGalat(e.message))
   }, [])
 
+  const dasar =
+    'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition'
+
   if (galat) {
     return (
-      <span className="flex items-center gap-1.5 text-xs text-rose-600">
-        <span className="h-2 w-2 rounded-full bg-rose-500" />
-        Backend tidak terhubung
+      <span className={`${dasar} border-rose-200 bg-rose-50 text-rose-700`}>
+        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+        Backend terputus
       </span>
     )
   }
 
-  if (!status) return <span className="text-xs text-slate-400">Memeriksa…</span>
+  if (!status) {
+    return (
+      <span className={`${dasar} border-slate-200 bg-slate-50 text-slate-400`}>
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-300" />
+        Memeriksa…
+      </span>
+    )
+  }
 
+  const sehat = status.status === 'ok'
   return (
     <span
-      className="flex items-center gap-1.5 text-xs text-slate-500"
+      className={`${dasar} ${
+        sehat
+          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+          : 'border-amber-200 bg-amber-50 text-amber-800'
+      }`}
       title={`LLM ${status.llm_model} · embedding ${status.embedding_model} (${status.embedding_dim} dimensi)`}
     >
       <span
-        className={`h-2 w-2 rounded-full ${status.status === 'ok' ? 'bg-emerald-500' : 'bg-amber-500'}`}
+        className={`h-1.5 w-1.5 rounded-full ${sehat ? 'bg-emerald-500' : 'bg-amber-500'}`}
       />
-      {status.llm_model}
+      <span className="hidden font-medium md:inline">{status.llm_model}</span>
+      <span className="font-medium md:hidden">Siap</span>
     </span>
   )
 }
@@ -70,6 +92,7 @@ export default function App() {
   // Dinaikkan setiap unggahan berhasil, supaya daftar berkas ikut berubah
   // tanpa perlu ditutup lalu dibuka lagi.
   const [penandaDokumen, setPenandaDokumen] = useState(0)
+
   // Memilih berkas menyiapkan awal pertanyaannya di kolom masukan. Dilakukan
   // lewat ref, bukan prop: ini satu kejadian sesaat, bukan keadaan yang perlu
   // diingat — dan memilih berkas yang sama dua kali harus tetap bekerja.
@@ -119,7 +142,8 @@ export default function App() {
 
   if (memeriksa) {
     return (
-      <div className="flex h-full items-center justify-center bg-slate-50 text-sm text-slate-400">
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-50 text-sm text-slate-400">
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-merek-500" />
         Memeriksa sesi…
       </div>
     )
@@ -129,26 +153,41 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col bg-slate-50">
-      <header className="border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-4">
-          <h1 className="text-sm font-semibold text-slate-800">Agentic RAG Assistant</h1>
-          <div className="flex items-center gap-4">
+      <header className="z-20 flex h-14 shrink-0 items-center border-b border-slate-200 bg-white/85 backdrop-blur">
+        {/* Selebar sidebar, sehingga garis pemisahnya menyambung ke bawah. */}
+        <div className="hidden h-full w-64 shrink-0 items-center border-r border-slate-200 px-4 sm:flex">
+          <Merek />
+        </div>
+
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 sm:px-6">
+          <div className="sm:hidden">
+            <Merek />
+          </div>
+
+          <div className="ml-auto flex items-center gap-2 sm:gap-3">
             <IndikatorStatus />
+
             <button
               onClick={() => setDokumenTerbuka(true)}
-              className="text-xs text-slate-500 underline-offset-2 transition hover:text-slate-800 hover:underline"
+              className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-merek-200 hover:bg-merek-50 hover:text-merek-700"
             >
-              Dokumen
+              <span aria-hidden>🗂</span>
+              <span className="hidden sm:inline">Dokumen</span>
             </button>
-            <span className="hidden text-xs text-slate-500 sm:inline">
-              {akun.username}
-              <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
+
+            <div className="hidden items-center gap-2 border-l border-slate-200 pl-3 sm:flex">
+              <span className="text-xs font-medium text-slate-600">
+                {akun.username}
+              </span>
+              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
                 {akun.role}
               </span>
-            </span>
+            </div>
+
             <button
               onClick={keluar}
-              className="text-xs text-slate-500 underline-offset-2 transition hover:text-slate-800 hover:underline"
+              title="Keluar"
+              className="rounded-full border border-transparent px-2.5 py-1 text-xs text-slate-500 transition hover:border-slate-200 hover:bg-slate-50 hover:text-slate-800"
             >
               Keluar
             </button>
@@ -156,7 +195,7 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex min-h-0 flex-1">
         {/* Sidebar disembunyikan pada layar sempit; percakapan tetap bisa
             dipakai, hanya daftarnya yang tidak muat ditampilkan. */}
         <div className="hidden sm:flex">
@@ -169,7 +208,10 @@ export default function App() {
           />
         </div>
 
-        <main className="mx-auto w-full max-w-3xl flex-1 overflow-hidden">
+        {/* Lebar bacaan dibatasi di dalam ChatBox, bukan di sini: bilah
+            masukan harus membentang penuh agar tidak tampak mengambang
+            terpisah dari percakapannya. */}
+        <main className="flex min-w-0 flex-1 flex-col">
           {/* Peran diteruskan supaya tombol unggah disembunyikan bagi READ_ONLY,
               yang memang akan ditolak backend dengan 403. */}
           <ChatBox

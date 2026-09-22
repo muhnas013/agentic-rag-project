@@ -48,12 +48,25 @@ export default function UploadButton({ onSelesai, onGagal, nonaktif }) {
         onClick={() => inputRef.current?.click()}
         disabled={nonaktif || sibuk}
         title="Unggah dokumen atau gambar"
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-300 text-slate-500 transition hover:border-slate-400 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+        aria-label="Unggah dokumen atau gambar"
+        className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
       >
         {sibuk ? (
-          <span className="text-xs font-medium tabular-nums">{progres}%</span>
+          <>
+            {/* Kemajuan ditampilkan sebagai latar yang naik, bukan hanya
+                angka: berkas besar butuh waktu, dan gerakan memberi tahu
+                bahwa prosesnya masih hidup. */}
+            <span
+              aria-hidden
+              className="absolute inset-x-0 bottom-0 bg-merek-100 transition-[height] duration-200"
+              style={{ height: `${progres}%` }}
+            />
+            <span className="relative text-[10px] font-semibold tabular-nums text-merek-700">
+              {progres}%
+            </span>
+          </>
         ) : (
-          <span aria-hidden className="text-lg">📎</span>
+          <span aria-hidden className="text-base">📎</span>
         )}
       </button>
     </>

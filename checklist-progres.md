@@ -1321,6 +1321,56 @@ Peringatan lint tetap 2 — sama persis dengan sebelum perubahan.
 
 Jumlah test: 163 -> 170, semuanya lulus.
 
+### Perombakan tampilan antarmuka · selesai (22 Sep 2026)
+
+Diminta pengguna: percantik tampilan UI. Memotret keadaan yang ada lebih
+dulu ternyata membuka **dua cacat tata letak**, bukan sekadar soal selera:
+
+1. **Bilah masukan mengambang sebagai pulau.** `main` dibatasi `max-w-3xl`,
+   sehingga latar putih dan garis atas bilah masukan berhenti di tengah
+   layar dengan celah kosong di kiri dan kanannya.
+2. **Header tidak sejajar dengan apa pun.** Isinya dibatasi `max-w-3xl`
+   sendiri, sementara sidebar selebar 256px di sebelah kiri — judul dan
+   tombol keluar berhenti di tempat yang tidak segaris dengan kolom mana pun.
+
+Keduanya diperbaiki dengan memindahkan pembatasan lebar: daerah gulir dan
+bilah masukan sama-sama membentang penuh, hanya isinya yang dipusatkan —
+**dengan padding mendatar yang sama persis**, supaya tepi gelembung
+percakapan segaris dengan tepi kotak masukan. Header dibuat setinggi 14
+dengan bagian kiri selebar sidebar, jadi garis pemisahnya menyambung.
+
+**Fondasi yang dipusatkan** di `index.css`: token warna merek (`--color-merek-*`),
+dua animasi masuk, scrollbar yang baru muncul saat disentuh, cincin fokus
+seragam untuk kendali yang bisa diklik, dan penghormatan pada
+`prefers-reduced-motion`. Cincin fokus sengaja tidak dikenakan pada kolom
+isian — masing-masing sudah punya penandanya sendiri, dan menumpuknya
+menghasilkan dua cincin.
+
+**Komponen baru `Merek.jsx`** dipakai header, layar masuk, layar kosong, dan
+avatar asisten, supaya keempatnya tidak pelan-pelan berbeda.
+
+**Yang berubah lainnya:** lencana tool berwarna per tool; skor sumber
+digambar sebagai bilah relatif terhadap potongan terbaik — angka 0,042 tidak
+berarti apa pun sampai pembaca tahu rentangnya; tabel Markdown kini bergulir
+sendiri alih-alih melebarkan halaman; keadaan memuat memakai kerangka
+(skeleton), bukan tulisan "Memuat…"; kemajuan unggah jadi latar yang naik;
+panel dokumen mendapat kolom pencarian yang hanya muncul bila berkasnya
+lebih dari delapan; layar masuk mendapat dua kabut warna dan catatan bahwa
+semua model berjalan lokal.
+
+**Diuji di browser** pada 1280px dan 420px: layar masuk, percakapan berisi,
+layar kosong, panel dokumen, dan alur kirim–jawab sungguhan (jawaban benar
+dari `kebijakan.txt`). Penyajian lencana tool, Markdown tebal, daftar butir,
+dan blok sumber diuji **dengan balasan tiruan** — balasan model tidak
+deterministik, dan menguji penyajian dengan keluaran yang berubah-ubah
+hanya menghasilkan kesimpulan yang tidak bisa dipercaya. Tidak ada galat
+konsol dan tidak ada gulir mendatar di layar sempit.
+
+Peringatan lint tetap 2, sama persis dengan sebelum perubahan. Build
+produksi lolos (CSS 36,5 kB → 7,4 kB gzip).
+
+Backend tidak disentuh; 170 test tetap lulus.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

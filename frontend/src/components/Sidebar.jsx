@@ -68,7 +68,7 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
       <div className="p-3">
         <button
           onClick={onBaru}
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-slate-300 text-sm font-medium text-slate-700 transition hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700"
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-merek-600 text-sm font-medium text-white shadow-sm transition hover:bg-merek-700"
         >
           <span aria-hidden className="text-base leading-none">+</span>
           Percakapan baru
@@ -76,10 +76,23 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
       </div>
 
       <div className="scroll-halus flex-1 overflow-y-auto px-2 pb-3">
-        {memuat && <p className="px-2 text-xs text-slate-400">Memuat…</p>}
+        {memuat && (
+          <div className="space-y-2 px-2 pt-2">
+            {[0, 1, 2].map((i) => (
+              <div key={i} className="animate-pulse space-y-1.5">
+                <div className="h-3 w-4/5 rounded bg-slate-100" />
+                <div className="h-2 w-2/5 rounded bg-slate-100" />
+              </div>
+            ))}
+          </div>
+        )}
         {galat && <p className="px-2 text-xs text-rose-600">{galat}</p>}
         {!memuat && !galat && sesi.length === 0 && (
-          <p className="px-2 text-xs text-slate-400">Belum ada percakapan.</p>
+          <p className="px-2 pt-4 text-center text-xs leading-relaxed text-slate-400">
+            Belum ada percakapan.
+            <br />
+            Pertanyaan pertama Anda akan muncul di sini.
+          </p>
         )}
 
         {kelompokkan(sesi).map(([label, daftar]) => (
@@ -98,14 +111,20 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
                       onClick={() => onPilih(s.session_id)}
                       onKeyDown={(e) => e.key === 'Enter' && onPilih(s.session_id)}
                       className={[
-                        'group flex cursor-pointer items-start gap-1.5 rounded-lg px-2 py-2 text-left text-sm transition',
+                        // Penanda aktif berupa garis di tepi kiri, bukan hanya
+                        // warna latar: pada layar dengan kontras rendah, beda
+                        // warna sehalus itu mudah luput.
+                        'group relative flex cursor-pointer items-start gap-1.5 rounded-lg py-2 pl-3 pr-2 text-left text-sm transition',
+                        'before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-r-full before:transition',
                         aktif
-                          ? 'bg-indigo-50 text-indigo-900 ring-1 ring-indigo-200'
-                          : 'text-slate-600 hover:bg-slate-100',
+                          ? 'bg-merek-50 text-merek-900 before:bg-merek-600'
+                          : 'text-slate-600 before:bg-transparent hover:bg-slate-50',
                       ].join(' ')}
                     >
                       <div className="min-w-0 flex-1">
-                        <p className="truncate">{s.judul}</p>
+                        <p className={`truncate ${aktif ? 'font-medium' : ''}`}>
+                          {s.judul}
+                        </p>
                         <p className="mt-0.5 text-[11px] text-slate-400">
                           {jam(s.terakhir)} · {s.jumlah_pesan} pesan
                         </p>

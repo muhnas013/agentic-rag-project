@@ -80,6 +80,7 @@ Dokumentasi API interaktif: <http://localhost:8000/docs>.
 | POST | `/upload` | USER | Unggah dokumen atau gambar |
 | POST | `/documents` | USER | Tambah dokumen dari teks langsung |
 | GET | `/documents` | READ_ONLY | Daftar berkas terunggah — dokumen terindeks **dan** gambar |
+| GET | `/models` | READ_ONLY | Model percakapan yang terpasang di Ollama |
 | POST | `/query` | READ_ONLY | Pencarian RAG mentah, tanpa LLM; `mode` = `hybrid`/`vector`/`fulltext` |
 | POST | `/chat` | READ_ONLY | Jawaban dari Agent |
 | GET | `/chat/history` | READ_ONLY | Riwayat percakapan satu sesi |
@@ -113,6 +114,12 @@ OLLAMA_LLM_MODEL=qwen2.5:3b-instruct-q4_K_M
 `hash_stub` adalah embedding hashing tanpa model, khusus pengembangan —
 dihitung di dalam proses, bukan layanan luar. Jangan dipakai menilai mutu
 retrieval.
+
+**Model percakapan dapat diganti dari antarmuka**, lewat menu di kolom
+pertanyaan. Daftarnya dibaca langsung dari Ollama, jadi `ollama pull <model>`
+cukup untuk menambah pilihan. Pilihan itu berlaku per permintaan dan hanya
+tersimpan di peramban masing-masing; `OLLAMA_LLM_MODEL` tetap menjadi nilai
+bawaan untuk semua orang.
 
 > **Berganti model embedding mengharuskan seluruh dokumen diolah ulang.**
 > Vektor dua model berbeda tidak sebanding, dan pencarian tetap memberi

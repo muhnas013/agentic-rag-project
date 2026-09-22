@@ -1496,6 +1496,65 @@ konsol, tidak ada gulir mendatar.
 
 Peringatan lint tetap 2. Backend tidak disentuh.
 
+### Fitur ganti model percakapan · selesai (22 Sep 2026)
+
+Diminta pengguna. Menyentuh backend, bukan hanya UI.
+
+**Model dipilih per permintaan, bukan sebagai setelan global.** Nama model
+diteruskan sebagai argumen dari `POST /chat` → `run_agent()` →
+`build_agent()` → `get_chat_model()`. Tidak ada satu pun keadaan bersama
+yang bisa berubah di tengah jalan, jadi dua permintaan yang berjalan
+bersamaan tidak saling menimpa pilihan satu sama lain. `OLLAMA_LLM_MODEL`
+di `.env` tetap menjadi nilai bawaan untuk semua orang.
+
+**`GET /models` membaca daftar langsung dari Ollama** tiap kali diminta,
+bukan dari daftar yang disalin ke `.env`: model bisa ditambah dengan
+`ollama pull` dan dihapus dengan `ollama rm` tanpa menyentuh aplikasi,
+sedangkan daftar salinan akan menua tanpa ada yang menyadarinya.
+
+Model embedding harus disaring dari daftar itu, dan Ollama **tidak**
+menandainya secara eksplisit di `/api/tags`. Penyaringannya bersandar pada
+dua petunjuk: nama yang sama dengan model embedding yang sedang dipakai,
+dan keluarga model berbasis BERT. Kalau kelak ada yang lolos, gejalanya
+jelas dan tidak berbahaya — satu nama tambahan muncul, dan memilihnya
+menghasilkan galat dari Ollama.
+
+**Nama model diperiksa terhadap daftar sebenarnya sebelum dipakai.** Ini
+menambah satu panggilan HTTP lokal per permintaan — hitungan milidetik,
+tidak berarti dibanding waktu inferensi — dan imbalannya galat yang jelas
+menyebut pilihan mana yang salah, bukan kegagalan dari dalam Ollama yang
+sulit dilacak sampai ke penyebabnya.
+
+**Frontend:** `PemilihModel.jsx`, diletakkan di dalam kolom pertanyaan
+bersama tombol lampiran — model dipilih per permintaan, jadi tempatnya
+memang di sebelah tempat permintaan itu disusun, dan itu pula letaknya pada
+Grok. Pilihan disimpan di `localStorage`.
+
+**Satu bug ditemukan dan diperbaiki saat pengerjaan.** Bila model tersimpan
+sudah dihapus dengan `ollama rm`, pil menampilkan model bawaan sementara
+yang dikirim tetap nama lama — dan permintaannya ditolak 400. Pilihan itu
+kini dilepas tepat saat daftar sebenarnya diketahui, di dalam `.then()`
+pengambilan daftar. Memilih model bawaan disimpan sebagai `null`, bukan
+namanya, supaya mengubah `OLLAMA_LLM_MODEL` di `.env` langsung berlaku dan
+tidak tertahan pilihan lama yang mengendap di peramban.
+
+**Diuji di browser:** daftar memuat 2 model tanpa `nomic-embed-text`,
+memilih llama3.2 mengubah label dan tersimpan, bertahan setelah muat ulang,
+memilih bawaan menghapus simpanannya, dan model hantu `model-hantu:99b`
+dilepas sendiri. Badan permintaan `/chat` diperiksa langsung: tanpa pilihan,
+medan `model` **tidak dikirim** sama sekali; dengan pilihan, terkirim
+`llama3.2:3b`.
+
+**Diuji terhadap sistem hidup:** `/models` mengembalikan dua model,
+`llama3.2:3b` benar-benar menjawab, model asing ditolak dengan pesan yang
+menyebut pilihan yang ada.
+
+Mock `run_agent` pada test lama ikut diperbarui agar tanda tangannya tetap
+mencerminkan yang sebenarnya — tiruan yang berbeda dari aslinya adalah cara
+paling mudah membuat test lulus atas hal yang tidak pernah terjadi.
+
+Jumlah test: 170 -> 179, semuanya lulus. Peringatan lint tetap 2.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

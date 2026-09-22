@@ -10,6 +10,7 @@ Endpoint pada fase ini:
     POST /upload          unggah berkas lalu olah menjadi embedding
     POST /documents       tambah dokumen dari teks langsung
     GET  /documents       daftar berkas yang sudah diunggah
+    GET  /models          daftar model percakapan yang tersedia di Ollama
     POST /query           pencarian RAG mentah, tanpa LLM
     POST /chat            jawaban berbasis dokumen
     GET  /chat/history    riwayat percakapan satu sesi
@@ -62,6 +63,7 @@ from backend.schemas import (
     DocumentSummary,
     HealthResponse,
     LoginRequest,
+    ModelListResponse,
     QueryRequest,
     QueryResponse,
     SourceItem,
@@ -78,7 +80,7 @@ from backend.services.document_service import (
     UploadValidationError,
 )
 from backend.services.embedding_service import EmbeddingError
-from backend.services.llm_service import LLMError
+from backend.services.llm_service import LLMError, daftar_model_llm
 
 logging.basicConfig(
     level=logging.INFO,
@@ -450,6 +452,30 @@ def list_documents(
     )
 
 
+@app.get("/models", response_model=ModelListResponse, tags=["system"])
+async def list_models(
+    _: User = Depends(wajib_peran(Peran.READ_ONLY)),
+) -> ModelListResponse:
+    """Model percakapan yang terpasang di Ollama (PRD §4.2).
+
+    Daftarnya dibaca langsung dari Ollama tiap kali diminta, bukan disimpan
+    di `.env`: model bisa ditambah atau dihapus dengan `ollama pull` dan
+    `ollama rm` tanpa menyentuh aplikasi, dan daftar yang disalin akan
+    menua tanpa ada yang menyadarinya.
+    """
+    try:
+        tersedia = await daftar_model_llm()
+    except LLMError as exc:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+
+    # Model bawaan selalu ikut terdaftar walau belum diunduh, supaya
+    # antarmuka tidak menampilkan pilihan aktif yang tidak ada di daftarnya.
+    if settings.ollama_llm_model not in tersedia:
+        tersedia = sorted([*tersedia, settings.ollama_llm_model])
+
+    return ModelListResponse(models=tersedia, default=settings.ollama_llm_model)
+
+
 # --------------------------------------------------------------------------
 # RAG
 # --------------------------------------------------------------------------
@@ -492,8 +518,26 @@ async def chat_endpoint(
     """
     riwayat = _recent_history(db, payload.session_id)
 
+    # Nama model diperiksa terhadap daftar yang benar-benar ada di Ollama.
+    # Pemeriksaan ini menambah satu panggilan HTTP lokal — hitungan
+    # milidetik, tidak berarti dibanding waktu inferensi — dan imbalannya
+    # galat yang jelas menyebut pilihan mana yang salah, bukan kegagalan
+    # dari dalam Ollama yang sulit dilacak sampai ke penyebabnya.
+    model = payload.model or None
+    if model:
+        try:
+            tersedia = await daftar_model_llm()
+        except LLMError as exc:
+            raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
+        if model not in tersedia:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"Model '{model}' tidak terpasang di Ollama. "
+                f"Pilihan yang ada: {', '.join(tersedia) or '(kosong)'}.",
+            )
+
     try:
-        hasil = await run_agent(payload.message, history=riwayat)
+        hasil = await run_agent(payload.message, history=riwayat, model=model)
     except LLMError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc
 

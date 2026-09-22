@@ -78,8 +78,18 @@ export const masuk = ({ username, password }) =>
 
 export const akunSaya = () => panggil(() => http.get('/auth/me'))
 
-export const kirimPesan = ({ sessionId, pesan }) =>
-  panggil(() => http.post('/chat', { session_id: sessionId, message: pesan }))
+export const kirimPesan = ({ sessionId, pesan, model }) =>
+  panggil(() =>
+    // `model` dikirim hanya bila ada: backend memaknai ketiadaannya sebagai
+    // "pakai bawaan dari .env", bukan sebagai pilihan kosong.
+    http.post('/chat', {
+      session_id: sessionId,
+      message: pesan,
+      ...(model ? { model } : {}),
+    }),
+  )
+
+export const daftarModel = () => panggil(() => http.get('/models'))
 
 export const ambilRiwayat = (sessionId) =>
   panggil(() => http.get('/chat/history', { params: { session_id: sessionId } }))

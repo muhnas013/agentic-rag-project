@@ -181,7 +181,7 @@ class TestQuery:
 class TestChat:
     @pytest.fixture
     def agent_tiruan(self, monkeypatch):
-        async def run_agent(question, history=None):
+        async def run_agent(question, history=None, model=None):
             return AgentResult(
                 answer=f"jawaban untuk: {question}",
                 tool_calls=[ToolInvocation("RAG_Search", ok=True)],
@@ -201,7 +201,7 @@ class TestChat:
     def test_galat_provider_menjadi_503(self, client, monkeypatch, sesi):
         from backend.services.llm_service import LLMError
 
-        async def gagal(question, history=None):
+        async def gagal(question, history=None, model=None):
             raise LLMError("Ollama tidak dapat dihubungi")
 
         monkeypatch.setattr(main_module, "run_agent", gagal)
@@ -214,7 +214,7 @@ class TestChat:
         """Pertanyaan yang gagal dijawab tidak boleh mengotori riwayat."""
         from backend.services.llm_service import LLMError
 
-        async def gagal(question, history=None):
+        async def gagal(question, history=None, model=None):
             raise LLMError("gagal")
 
         monkeypatch.setattr(main_module, "run_agent", gagal)
@@ -249,7 +249,7 @@ class TestDaftarSesi:
 
     @pytest.fixture
     def agent_tiruan(self, monkeypatch):
-        async def run_agent(question, history=None):
+        async def run_agent(question, history=None, model=None):
             return AgentResult(answer=f"jawaban: {question}", tool_calls=[])
 
         monkeypatch.setattr(main_module, "run_agent", run_agent)
@@ -305,7 +305,7 @@ class TestDaftarSesi:
 class TestHapusSesi:
     @pytest.fixture
     def agent_tiruan(self, monkeypatch):
-        async def run_agent(question, history=None):
+        async def run_agent(question, history=None, model=None):
             return AgentResult(answer="ok", tool_calls=[])
 
         monkeypatch.setattr(main_module, "run_agent", run_agent)
@@ -324,3 +324,111 @@ class TestHapusSesi:
         client.post("/chat", json={"session_id": sesi, "message": "halo"})
         c = buat_pengguna("uji_hapus", "READ_ONLY")
         assert c.delete(f"/chat/sessions/{sesi}").status_code == 403
+
+
+class TestPemilihanModel:
+    """Model dipilih per permintaan, bukan sebagai setelan global.
+
+    Dua permintaan yang berjalan bersamaan tidak boleh saling menimpa
+    pilihan satu sama lain, jadi nama model diteruskan sebagai argumen
+    sampai ke `get_chat_model()` — tidak ada satu pun keadaan bersama.
+    """
+
+    @pytest.fixture
+    def model_tersedia(self, monkeypatch):
+        async def daftar():
+            return ["llama3.2:3b", "qwen2.5:3b-instruct-q4_K_M"]
+
+        monkeypatch.setattr(main_module, "daftar_model_llm", daftar)
+
+    def test_daftar_model_beserta_bawaannya(self, client, model_tersedia):
+        r = client.get("/models")
+        assert r.status_code == 200
+        data = r.json()
+        assert "llama3.2:3b" in data["models"]
+        assert data["default"] == settings.ollama_llm_model
+
+    def test_model_bawaan_selalu_ikut_terdaftar(self, client, monkeypatch):
+        """Walau belum diunduh — supaya pilihan aktif tidak hilang dari daftar."""
+
+        async def kosong():
+            return []
+
+        monkeypatch.setattr(main_module, "daftar_model_llm", kosong)
+        assert client.get("/models").json()["models"] == [settings.ollama_llm_model]
+
+    def test_ollama_mati_menjadi_503(self, client, monkeypatch):
+        from backend.services.llm_service import LLMError
+
+        async def gagal():
+            raise LLMError("Ollama tidak dapat dihubungi")
+
+        monkeypatch.setattr(main_module, "daftar_model_llm", gagal)
+        assert client.get("/models").status_code == 503
+
+    def test_model_pilihan_diteruskan_ke_agent(
+        self, client, monkeypatch, model_tersedia, sesi
+    ):
+        dipakai = {}
+
+        async def run_agent(question, history=None, model=None):
+            dipakai["model"] = model
+            return AgentResult(answer="ya", tool_calls=[])
+
+        monkeypatch.setattr(main_module, "run_agent", run_agent)
+        client.post(
+            "/chat",
+            json={"session_id": sesi, "message": "halo", "model": "llama3.2:3b"},
+        )
+        assert dipakai["model"] == "llama3.2:3b"
+
+    def test_tanpa_model_memakai_bawaan(
+        self, client, monkeypatch, model_tersedia, sesi
+    ):
+        """`None` berarti `get_chat_model()` memakai OLLAMA_LLM_MODEL."""
+        dipakai = {}
+
+        async def run_agent(question, history=None, model=None):
+            dipakai["model"] = model
+            return AgentResult(answer="ya", tool_calls=[])
+
+        monkeypatch.setattr(main_module, "run_agent", run_agent)
+        client.post("/chat", json={"session_id": sesi, "message": "halo"})
+        assert dipakai["model"] is None
+
+    def test_model_asing_ditolak_dengan_pesan_jelas(
+        self, client, monkeypatch, model_tersedia, sesi
+    ):
+        """Galat harus menyebut pilihan mana yang salah, bukan gagal dari
+        dalam Ollama dengan pesan yang sulit dilacak."""
+
+        async def jangan_dipanggil(*a, **k):
+            raise AssertionError("agent tidak boleh dijalankan untuk model asing")
+
+        monkeypatch.setattr(main_module, "run_agent", jangan_dipanggil)
+        r = client.post(
+            "/chat",
+            json={"session_id": sesi, "message": "halo", "model": "tidak-ada:1b"},
+        )
+        assert r.status_code == 400
+        assert "tidak-ada:1b" in r.json()["detail"]
+
+
+class TestPenyaringanModelEmbedding:
+    """Ollama tidak menandai model embedding secara eksplisit di /api/tags."""
+
+    def test_model_embedding_yang_dipakai_disaring(self):
+        from backend.services.llm_service import _model_embedding
+
+        assert _model_embedding(settings.ollama_embedding_model, "nomic-bert")
+
+    def test_keluarga_bert_disaring_walau_namanya_lain(self):
+        from backend.services.llm_service import _model_embedding
+
+        assert _model_embedding("mxbai-embed-large:latest", "bert")
+
+    def test_model_percakapan_tidak_ikut_tersaring(self):
+        from backend.services.llm_service import _model_embedding
+
+        assert not _model_embedding("qwen2.5:3b-instruct-q4_K_M", "qwen2")
+        assert not _model_embedding("llama3.2:3b", "llama")

@@ -76,6 +76,17 @@ class ChatRequest(BaseModel):
     session_id: str = Field(min_length=1, max_length=100)
     message: str = Field(min_length=1)
     top_k: int | None = Field(default=None, ge=1, le=20)
+    # Model yang dipakai untuk permintaan ini saja; kosong berarti nilai
+    # bawaan dari `.env`. Namanya diperiksa terhadap daftar model yang
+    # benar-benar ada di Ollama sebelum dipakai.
+    model: str | None = Field(default=None, max_length=200)
+
+
+class ModelListResponse(BaseModel):
+    """Model percakapan yang tersedia, beserta mana yang jadi bawaan."""
+
+    models: list[str]
+    default: str
 
 
 class ChatResponse(BaseModel):

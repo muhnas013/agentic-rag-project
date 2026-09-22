@@ -11,7 +11,13 @@
  * `KolomPertanyaan` dipisah menjadi komponen tersendiri — dipakai di dua
  * tempat, tetapi hanya ada satu salinan perilakunya.
  */
-import { useEffect, useImperativeHandle, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from 'react'
 import { ambilRiwayat, kirimPesan } from '../services/api'
 import {
   IkonBasisData,
@@ -21,6 +27,7 @@ import {
   IkonPanahAtas,
 } from './Ikon'
 import { Lambang } from './Merek'
+import PemilihModel from './PemilihModel'
 import MessageBubble from './MessageBubble'
 import UploadButton from './UploadButton'
 
@@ -65,6 +72,8 @@ function KolomPertanyaan({
   onKirim,
   menunggu,
   peran,
+  model,
+  onPilihModel,
   onUnggahSelesai,
   onUnggahGagal,
 }) {
@@ -119,7 +128,7 @@ function KolomPertanyaan({
         <div className="mt-1 flex items-center justify-between gap-2">
           {/* READ_ONLY tidak berwenang mengunggah; tombolnya disembunyikan
               supaya tidak menawarkan aksi yang pasti ditolak 403. */}
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 items-center gap-1">
             {peran !== 'READ_ONLY' && (
               <UploadButton
                 nonaktif={menunggu}
@@ -127,6 +136,11 @@ function KolomPertanyaan({
                 onGagal={onUnggahGagal}
               />
             )}
+            <PemilihModel
+              nilai={model}
+              onPilih={onPilihModel}
+              nonaktif={menunggu}
+            />
           </div>
 
           <button
@@ -144,7 +158,11 @@ function KolomPertanyaan({
   )
 }
 
+/** Pilihan model bertahan antar sesi, tetapi hanya di peramban ini. */
+const KUNCI_MODEL = 'agentic-rag-model'
+
 export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }) {
+  const [model, setModel] = useState(() => localStorage.getItem(KUNCI_MODEL))
   const [pesan, setPesan] = useState([])
   const [masukan, setMasukan] = useState('')
   const [menunggu, setMenunggu] = useState(false)
@@ -184,6 +202,12 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
     },
   }), [])
 
+  const pilihModel = useCallback((nama) => {
+    setModel(nama)
+    if (nama) localStorage.setItem(KUNCI_MODEL, nama)
+    else localStorage.removeItem(KUNCI_MODEL)
+  }, [])
+
   function tambah(m) {
     setPesan((sebelumnya) => [...sebelumnya, { id: crypto.randomUUID(), ...m }])
   }
@@ -197,7 +221,7 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
     setMenunggu(true)
 
     try {
-      const hasil = await kirimPesan({ sessionId, pesan: isi })
+      const hasil = await kirimPesan({ sessionId, pesan: isi, model })
       tambah({
         role: 'assistant',
         content: hasil.answer,
@@ -245,6 +269,8 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
       onKirim={kirim}
       menunggu={menunggu}
       peran={peran}
+      model={model}
+      onPilihModel={pilihModel}
       onUnggahSelesai={tanganiUnggahan}
       onUnggahGagal={(msg) => tambah({ role: 'system', content: msg, error: true })}
     />

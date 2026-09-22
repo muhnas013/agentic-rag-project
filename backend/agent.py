@@ -221,26 +221,31 @@ def daftar_dokumen() -> str:
     )
 
 
-def build_agent(temperature: float = 0.2):
+def build_agent(temperature: float = 0.2, model: str | None = None):
     """Bangun agent baru.
 
     Dibangun per permintaan, bukan sekali saat start, supaya perubahan
     `.env` cukup dimuat ulang tanpa menyentuh kode — dan supaya kegagalan
     menyiapkan provider muncul sebagai galat permintaan, bukan membuat
-    seluruh aplikasi gagal start.
+    seluruh aplikasi gagal start. `model` menimpa pilihan bawaan untuk satu
+    permintaan saja.
     """
     from langchain.agents import create_agent
 
     # Daftar dokumen disusun ulang tiap permintaan, karena isinya berubah
     # setiap kali pengguna mengunggah berkas baru.
     return create_agent(
-        model=get_chat_model(temperature),
+        model=get_chat_model(temperature, model=model),
         tools=TOOLS,
         system_prompt=SYSTEM_PROMPT + daftar_dokumen(),
     )
 
 
-async def _jawab_tanpa_tool(question: str, history: list[dict[str, str]] | None) -> str:
+async def _jawab_tanpa_tool(
+    question: str,
+    history: list[dict[str, str]] | None,
+    model: str | None = None,
+) -> str:
     """Jalur cadangan ketika model membisu dengan tools terpasang.
 
     Pada `qwen2.5:3b` ditemukan kegagalan yang tajam: pertanyaan yang memuat
@@ -258,7 +263,7 @@ async def _jawab_tanpa_tool(question: str, history: list[dict[str, str]] | None)
     pesan.append(("user", question))
 
     try:
-        balasan = await get_chat_model(temperature=0.4).ainvoke(pesan)
+        balasan = await get_chat_model(temperature=0.4, model=model).ainvoke(pesan)
     except Exception as exc:
         logger.warning("Jalur cadangan tanpa tool ikut gagal: %s", exc)
         return ""
@@ -270,13 +275,19 @@ async def _jawab_tanpa_tool(question: str, history: list[dict[str, str]] | None)
     return teks.strip()
 
 
-async def run_agent(question: str, history: list[dict[str, str]] | None = None) -> AgentResult:
+async def run_agent(
+    question: str,
+    history: list[dict[str, str]] | None = None,
+    model: str | None = None,
+) -> AgentResult:
     """Jalankan agent untuk satu pertanyaan.
 
     Args:
         question: Pertanyaan pengguna.
         history: Riwayat percakapan sebelumnya, masing-masing
             `{"role": ..., "content": ...}`.
+        model: Nama model Ollama yang dipakai untuk permintaan ini saja.
+            `None` berarti memakai `OLLAMA_LLM_MODEL` dari `.env`.
 
     Raises:
         LLMError: bila provider tidak dapat disiapkan atau dihubungi.
@@ -296,7 +307,7 @@ async def run_agent(question: str, history: list[dict[str, str]] | None = None) 
 
         suhu = SUHU_PERCOBAAN[percobaan - 1]
         try:
-            hasil = await build_agent(suhu).ainvoke({"messages": messages})
+            hasil = await build_agent(suhu, model=model).ainvoke({"messages": messages})
         except LLMError:
             raise
         except Exception as exc:
@@ -326,7 +337,7 @@ async def run_agent(question: str, history: list[dict[str, str]] | None = None) 
     if not jawaban:
         # Model membisu dengan tools terpasang; coba sekali lagi tanpa tools.
         logger.warning("Seluruh percobaan kosong; beralih ke jalur tanpa tool.")
-        jawaban = await _jawab_tanpa_tool(question, history)
+        jawaban = await _jawab_tanpa_tool(question, history, model=model)
         jejak = []
 
     if not jawaban:

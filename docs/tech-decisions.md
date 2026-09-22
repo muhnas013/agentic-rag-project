@@ -355,3 +355,32 @@ hanya mengubah `OLLAMA_LLM_MODEL` di `.env`.
 
 Dua lapisan pertahanan dari D-13 tetap dipertahankan meski modelnya lebih
 patuh: keduanya pertahanan berlapis, bukan tambalan untuk satu model.
+
+### D-15 — Autentikasi JWT dengan tiga peran, dan sakelar untuk mematikannya
+
+PRD §18 menetapkan JWT dan pemisahan permission ADMIN / USER / READ_ONLY;
+PRD §24 menjadikan keduanya syarat Definition of Done.
+
+**Pembagian peran mengikuti apa yang bisa diubah pengguna**, bukan sekadar
+tingkatan jabatan: READ_ONLY hanya membaca, USER boleh menambah dokumen dan
+mengunggah berkas, ADMIN boleh mengelola akun. Perbandingannya berbasis
+tingkat, bukan kesamaan persis, sehingga ADMIN otomatis lolos di tempat yang
+menuntut USER — tanpa perlu mendaftarkan tiap peran di tiap endpoint.
+
+**`GET /health` sengaja dibiarkan terbuka.** Frontend memakainya untuk
+menampilkan status sebelum pengguna sempat masuk, dan isinya tidak memuat
+data siapa pun.
+
+**`AUTH_ENABLED=false` mematikan seluruh pemeriksaan**, dan seluruh permintaan
+dianggap datang dari admin bawaan. Ini keleluasaan yang disengaja: sistem
+ditujukan berjalan di mesin sendiri, dan menuntut token saat mengembangkan
+lebih banyak menghambat daripada melindungi. Supaya tidak berubah menjadi
+celah yang terlupakan, keadaan itu ditulis sebagai peringatan di log startup.
+
+**Akun admin bawaan dibuat otomatis** saat tabel `users` masih kosong — tanpa
+itu sistem yang baru dipasang tidak punya satu pun cara untuk masuk. Kata
+sandinya diambil dari `.env` dan log startup mengingatkan untuk menggantinya.
+
+**Rincian kecil yang disengaja:** pesan galat login dibuat sama persis untuk
+nama pengguna yang salah dan kata sandi yang salah. Pesan yang berbeda bisa
+dipakai menebak akun mana yang terdaftar. Ada test yang mengunci perilaku ini.

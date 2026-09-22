@@ -853,6 +853,49 @@ Jumlah test: 83 -> 104, semuanya lulus.
 
 **Blocker:** tidak ada.
 
+### Authentication & Authorization · selesai (22 Sep 2026)
+
+Menutup B-23. PRD §18 menetapkan JWT dan pemisahan ADMIN / USER / READ_ONLY;
+PRD §24 menjadikan keduanya syarat Definition of Done.
+
+**Backend** — `backend/auth.py`, tabel `users`, dan empat endpoint:
+`POST /auth/login`, `GET /auth/me`, serta `POST` dan `GET /auth/users`
+(khusus ADMIN). Kata sandi disimpan sebagai hash bcrypt, tidak pernah
+sebagai teks asli.
+
+**Matriks wewenang, diverifikasi terhadap sistem yang berjalan**
+
+| Aksi | READ_ONLY | USER | ADMIN |
+|------|-----------|------|-------|
+| `GET /documents` | 200 | 200 | 200 |
+| `GET /auth/me` | 200 | 200 | 200 |
+| `POST /documents` | **403** | 200 | 200 |
+| `GET /auth/users` | **403** | **403** | 200 |
+
+Tanpa token, seluruh endpoint kecuali `/health` membalas 401. `/health`
+sengaja terbuka: frontend memakainya sebelum pengguna sempat masuk.
+
+**Frontend** mendapat layar masuk. Token disisipkan lewat interceptor Axios,
+bukan di tiap pemanggilan, supaya tidak ada endpoint yang terlewat saat kelak
+ditambahkan. Token yang ditolak mengembalikan aplikasi ke layar masuk alih-alih
+membiarkan permintaan berikutnya gagal satu per satu. Tombol unggah
+disembunyikan bagi READ_ONLY — menawarkan aksi yang pasti ditolak 403 hanya
+membingungkan.
+
+Diuji di browser: sandi salah memunculkan pesan galat, sandi benar membawa ke
+percakapan dengan `admin ADMIN` di header.
+
+**`AUTH_ENABLED=false`** mematikan seluruh pemeriksaan untuk pengembangan
+lokal. Keleluasaan ini disengaja — sistem memang ditujukan berjalan di mesin
+sendiri — dan ditulis sebagai peringatan di log startup supaya tidak berubah
+menjadi celah yang terlupakan.
+
+Satu rincian yang disengaja: pesan galat login sama persis untuk nama pengguna
+salah dan kata sandi salah, karena pesan yang berbeda bisa dipakai menebak akun
+mana yang terdaftar. Ada test yang mengunci perilaku itu.
+
+Jumlah test: 104 -> 128, semuanya lulus.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

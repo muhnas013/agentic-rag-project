@@ -3,7 +3,7 @@
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import BigInteger, DateTime, Index, String, Text, func
+from sqlalchemy import BigInteger, Boolean, DateTime, Index, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,6 +12,9 @@ from backend.database import Base
 
 # Peran pesan yang dikenali (PRD §7.1).
 CHAT_ROLES = ("user", "assistant", "system", "tool")
+
+# Peran pengguna (PRD §18 - Authorization).
+USER_ROLES = ("ADMIN", "USER", "READ_ONLY")
 
 
 class ChatHistory(Base):
@@ -74,3 +77,25 @@ class Document(Base):
 
     def __repr__(self) -> str:
         return f"<Document id={self.id} filename={self.filename!r}>"
+
+
+class User(Base):
+    """Akun pengguna (PRD §18 - Authentication & Authorization).
+
+    Kata sandi hanya disimpan sebagai hash bcrypt; tidak ada kolom yang
+    memuat teks aslinya.
+    """
+
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    username: Mapped[str] = mapped_column(String(50), nullable=False, unique=True, index=True)
+    password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default="USER")
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, nullable=False, server_default=func.current_timestamp()
+    )
+
+    def __repr__(self) -> str:
+        return f"<User {self.username!r} role={self.role}>"

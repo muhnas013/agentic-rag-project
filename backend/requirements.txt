@@ -29,6 +29,10 @@ httpx>=0.27,<1.0                   # klien HTTP ke Ollama / provider API
 paddlepaddle>=3.0,<4.0
 paddleocr>=3.0,<4.0
 
+# --- Autentikasi (PRD §18 dan §24) ---
+PyJWT>=2.9,<3.0                    # pembuatan dan verifikasi token JWT
+bcrypt>=4.2,<6.0                   # hashing kata sandi
+
 # --- Validasi upload (PRD §18 - File Upload Security) ---
 python-magic>=0.4.27,<1.0          # deteksi MIME dari isi file, butuh libmagic
 

@@ -93,3 +93,35 @@ class ChatHistoryResponse(BaseModel):
 class ErrorResponse(BaseModel):
     detail: str
     context: dict[str, Any] | None = None
+
+
+# --------------------------------------------------------------------------
+# Autentikasi (PRD §18)
+# --------------------------------------------------------------------------
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=50)
+    password: str = Field(min_length=1)
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_in: int
+    username: str
+    role: str
+
+
+class UserCreate(BaseModel):
+    username: str = Field(min_length=3, max_length=50, pattern=r"^[A-Za-z0-9._-]+$")
+    password: str = Field(min_length=6, max_length=128)
+    role: Literal["ADMIN", "USER", "READ_ONLY"] = "USER"
+
+
+class UserOut(BaseModel):
+    id: int
+    username: str
+    role: str
+    is_active: bool
+    created_at: datetime

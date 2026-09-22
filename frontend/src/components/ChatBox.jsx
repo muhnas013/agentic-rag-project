@@ -36,7 +36,7 @@ const CONTOH = [
   'Berapa total transaksi pada struk-uji.png?',
 ]
 
-export default function ChatBox() {
+export default function ChatBox({ peran }) {
   const [sessionId] = useState(sesiTersimpan)
   const [pesan, setPesan] = useState([])
   const [masukan, setMasukan] = useState('')
@@ -170,11 +170,15 @@ export default function ChatBox() {
         className="border-t border-slate-200 bg-white px-4 py-3 sm:px-6"
       >
         <div className="mx-auto flex max-w-3xl items-center gap-2">
+          {/* READ_ONLY tidak berwenang mengunggah; tombolnya disembunyikan
+              supaya tidak menawarkan aksi yang pasti ditolak 403. */}
+          {peran !== 'READ_ONLY' && (
           <UploadButton
             nonaktif={menunggu}
             onSelesai={tanganiUnggahan}
             onGagal={(msg) => tambah({ role: 'system', content: msg, error: true })}
           />
+          )}
           <input
             value={masukan}
             onChange={(e) => setMasukan(e.target.value)}

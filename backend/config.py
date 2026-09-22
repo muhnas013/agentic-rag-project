@@ -122,6 +122,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60
 
+    # Autentikasi dapat dimatikan untuk pengembangan lokal. Sistem ini
+    # memang ditujukan berjalan di mesin sendiri, jadi keleluasaan itu
+    # disengaja — bukan celah yang terlewat.
+    auth_enabled: bool = True
+    admin_username: str = "admin"
+    admin_password: str = "admin"
+
     # --- CORS ---
     cors_origins: CSVList = Field(default_factory=list)
 

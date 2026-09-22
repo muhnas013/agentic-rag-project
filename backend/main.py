@@ -2,6 +2,10 @@
 
 Endpoint pada fase ini:
 
+    POST /auth/login      tukar kredensial dengan token JWT
+    GET  /auth/me         identitas dan peran pemilik token
+    POST /auth/users      tambah akun (ADMIN)
+    GET  /auth/users      daftar akun (ADMIN)
     GET  /health          status aplikasi, database, dan provider model
     POST /upload          unggah berkas lalu olah menjadi embedding
     POST /documents       tambah dokumen dari teks langsung
@@ -27,9 +31,24 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from backend.agent import run_agent
+from backend.auth import (
+    Peran,
+    buat_token,
+    hash_sandi,
+    pengguna_saat_ini,
+    sandi_cocok,
+    siapkan_akun_bawaan,
+    wajib_peran,
+)
 from backend.config import settings
-from backend.database import check_database_connection, engine, get_db, init_database
-from backend.models import ChatHistory, Document
+from backend.database import (
+    SessionLocal,
+    check_database_connection,
+    engine,
+    get_db,
+    init_database,
+)
+from backend.models import ChatHistory, Document, User
 from backend.schemas import (
     ChatHistoryResponse,
     ChatMessageItem,
@@ -37,11 +56,15 @@ from backend.schemas import (
     ChatResponse,
     DocumentSummary,
     HealthResponse,
+    LoginRequest,
     QueryRequest,
     QueryResponse,
     SourceItem,
     TextDocumentRequest,
+    TokenResponse,
     UploadResponse,
+    UserCreate,
+    UserOut,
 )
 from backend.services import document_service
 from backend.services.document_service import (
@@ -70,7 +93,19 @@ async def lifespan(app: FastAPI):
     """Siapkan extension pgvector dan tabel saat aplikasi start."""
     try:
         init_database()
-        logger.info("Database siap. Tabel chat_history dan documents tersedia.")
+        logger.info("Database siap. Tabel chat_history, documents, dan users tersedia.")
+
+        db = SessionLocal()
+        try:
+            siapkan_akun_bawaan(db)
+        finally:
+            db.close()
+
+        if not settings.auth_enabled:
+            logger.warning(
+                "AUTH_ENABLED=false — seluruh endpoint terbuka tanpa autentikasi. "
+                "Hanya untuk pengembangan di mesin sendiri."
+            )
     except Exception as exc:  # pragma: no cover - bergantung lingkungan
         # Aplikasi tetap dinyalakan agar /health bisa melaporkan penyebabnya.
         logger.error("Inisialisasi database gagal: %s", exc)
@@ -139,6 +174,10 @@ def _recent_history(db: Session, session_id: str) -> list[dict[str, str]]:
 def health() -> HealthResponse:
     """Status sistem (PRD §20).
 
+    Sengaja tidak menuntut autentikasi: frontend memakainya untuk menampilkan
+    status sebelum pengguna sempat masuk, dan isinya tidak memuat data
+    siapa pun.
+
     Ketersediaan provider model sengaja tidak ikut diperiksa agar endpoint ini
     tetap cepat dan tidak memakai kuota API pada setiap pemanggilan.
     """
@@ -171,6 +210,78 @@ def health() -> HealthResponse:
 
 
 # --------------------------------------------------------------------------
+# Autentikasi (PRD §18)
+# --------------------------------------------------------------------------
+
+
+@app.post("/auth/login", response_model=TokenResponse, tags=["auth"])
+def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    """Tukar nama pengguna dan kata sandi dengan token JWT."""
+    pengguna = db.query(User).filter(User.username == payload.username).first()
+
+    # Pesan galatnya sengaja sama untuk nama yang salah maupun sandi yang
+    # salah, supaya tidak bisa dipakai menebak akun mana yang ada.
+    if not pengguna or not sandi_cocok(payload.password, pengguna.password_hash):
+        logger.warning("Percobaan masuk gagal untuk %r", payload.username)
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "Nama pengguna atau kata sandi salah."
+        )
+
+    if not pengguna.is_active:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Akun dinonaktifkan.")
+
+    token, berlaku = buat_token(pengguna)
+    return TokenResponse(
+        access_token=token,
+        expires_in=berlaku,
+        username=pengguna.username,
+        role=pengguna.role,
+    )
+
+
+@app.get("/auth/me", response_model=UserOut, tags=["auth"])
+def akun_saya(pengguna: User = Depends(pengguna_saat_ini)) -> UserOut:
+    """Identitas dan peran pemilik token yang sedang dipakai."""
+    return UserOut.model_validate(pengguna, from_attributes=True)
+
+
+@app.post("/auth/users", response_model=UserOut, tags=["auth"])
+def tambah_pengguna(
+    payload: UserCreate,
+    db: Session = Depends(get_db),
+    _: User = Depends(wajib_peran(Peran.ADMIN)),
+) -> UserOut:
+    """Tambah akun baru. Hanya ADMIN."""
+    if db.query(User).filter(User.username == payload.username).first():
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, f"Pengguna '{payload.username}' sudah ada."
+        )
+
+    pengguna = User(
+        username=payload.username,
+        password_hash=hash_sandi(payload.password),
+        role=payload.role,
+    )
+    db.add(pengguna)
+    db.commit()
+    db.refresh(pengguna)
+    logger.info("Pengguna baru '%s' dibuat dengan peran %s", pengguna.username, pengguna.role)
+    return UserOut.model_validate(pengguna, from_attributes=True)
+
+
+@app.get("/auth/users", response_model=list[UserOut], tags=["auth"])
+def daftar_pengguna(
+    db: Session = Depends(get_db),
+    _: User = Depends(wajib_peran(Peran.ADMIN)),
+) -> list[UserOut]:
+    """Daftar seluruh akun. Hanya ADMIN."""
+    return [
+        UserOut.model_validate(u, from_attributes=True)
+        for u in db.query(User).order_by(User.id).all()
+    ]
+
+
+# --------------------------------------------------------------------------
 # Dokumen
 # --------------------------------------------------------------------------
 
@@ -179,6 +290,7 @@ def health() -> HealthResponse:
 async def upload(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
+    _: User = Depends(wajib_peran(Peran.USER)),
 ) -> UploadResponse:
     """Unggah dokumen lalu ubah menjadi embedding (PRD §20).
 
@@ -228,6 +340,7 @@ async def upload(
 async def add_text_document(
     payload: TextDocumentRequest,
     db: Session = Depends(get_db),
+    _: User = Depends(wajib_peran(Peran.USER)),
 ) -> UploadResponse:
     """Tambah dokumen dari teks langsung.
 
@@ -250,7 +363,10 @@ async def add_text_document(
 
 
 @app.get("/documents", response_model=list[DocumentSummary], tags=["documents"])
-def list_documents(db: Session = Depends(get_db)) -> list[DocumentSummary]:
+def list_documents(
+    db: Session = Depends(get_db),
+    _: User = Depends(wajib_peran(Peran.READ_ONLY)),
+) -> list[DocumentSummary]:
     """Daftar dokumen yang sudah terindeks beserta jumlah potongannya."""
     rows = db.execute(
         select(
@@ -277,6 +393,7 @@ def list_documents(db: Session = Depends(get_db)) -> list[DocumentSummary]:
 async def query_documents(
     payload: QueryRequest,
     db: Session = Depends(get_db),
+    _: User = Depends(wajib_peran(Peran.READ_ONLY)),
 ) -> QueryResponse:
     """Pencarian kemiripan mentah, tanpa LLM.
 
@@ -299,6 +416,7 @@ async def query_documents(
 async def chat_endpoint(
     payload: ChatRequest,
     db: Session = Depends(get_db),
+    _: User = Depends(wajib_peran(Peran.READ_ONLY)),
 ) -> ChatResponse:
     """Jawaban dari Agent Orchestrator (PRD §14 dan §20).
 
@@ -333,6 +451,7 @@ def chat_history(
     session_id: str = Query(min_length=1, max_length=100),
     limit: int = Query(default=50, ge=1, le=500),
     db: Session = Depends(get_db),
+    _: User = Depends(wajib_peran(Peran.READ_ONLY)),
 ) -> ChatHistoryResponse:
     """Riwayat percakapan satu sesi, diurutkan dari yang paling lama."""
     rows = db.execute(

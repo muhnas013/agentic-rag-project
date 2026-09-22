@@ -8,6 +8,12 @@ import axios from 'axios'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'
 
+const KUNCI_TOKEN = 'agentic-rag-token'
+
+export const ambilToken = () => localStorage.getItem(KUNCI_TOKEN)
+export const simpanToken = (token) => localStorage.setItem(KUNCI_TOKEN, token)
+export const hapusToken = () => localStorage.removeItem(KUNCI_TOKEN)
+
 const http = axios.create({
   baseURL: BASE_URL,
   // Agent bisa memanggil beberapa tool berurutan, dan OCR pada pemanggilan
@@ -15,6 +21,20 @@ const http = axios.create({
   timeout: 180000,
   headers: { 'Content-Type': 'application/json' },
 })
+
+// Token disisipkan di sini, bukan di tiap pemanggilan, supaya tidak ada
+// endpoint yang terlewat saat kelak ditambahkan.
+http.interceptors.request.use((config) => {
+  const token = ambilToken()
+  if (token) config.headers.Authorization = `Bearer ${token}`
+  return config
+})
+
+/** Dipanggil saat token ditolak, supaya App bisa menampilkan layar masuk. */
+let saatSesiBerakhir = () => {}
+export const pasangPenangananSesiBerakhir = (fn) => {
+  saatSesiBerakhir = fn
+}
 
 /**
  * Ubah galat Axios menjadi pesan yang layak dibaca pengguna.
@@ -25,6 +45,12 @@ const http = axios.create({
  */
 function pesanGalat(error) {
   if (error.response) {
+    // Token kedaluwarsa atau tidak sah: bersihkan dan minta masuk lagi,
+    // daripada membiarkan seluruh permintaan berikutnya gagal diam-diam.
+    if (error.response.status === 401) {
+      hapusToken()
+      saatSesiBerakhir()
+    }
     const detail = error.response.data?.detail
     if (typeof detail === 'string') return detail
     if (Array.isArray(detail)) return detail.map((d) => d.msg).join(', ')
@@ -46,6 +72,11 @@ async function panggil(fn) {
     throw new ApiError(pesanGalat(error))
   }
 }
+
+export const masuk = ({ username, password }) =>
+  panggil(() => http.post('/auth/login', { username, password }))
+
+export const akunSaya = () => panggil(() => http.get('/auth/me'))
 
 export const kirimPesan = ({ sessionId, pesan }) =>
   panggil(() => http.post('/chat', { session_id: sessionId, message: pesan }))

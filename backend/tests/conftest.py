@@ -14,7 +14,7 @@ from fastapi.testclient import TestClient
 from backend import main as main_module
 from backend.config import settings
 from backend.database import SessionLocal
-from backend.models import ChatHistory, Document
+from backend.models import ChatHistory, Document, User
 
 
 @pytest.fixture
@@ -40,10 +40,56 @@ def embedding_tiruan(monkeypatch):
 
 
 @pytest.fixture
-def client(embedding_tiruan):
-    """TestClient dengan lifespan aktif, sehingga tabel dipastikan ada."""
+def client_anonim(embedding_tiruan):
+    """TestClient tanpa token — untuk menguji penolakan autentikasi."""
     with TestClient(main_module.app) as c:
         yield c
+
+
+def _token(c, username, password):
+    r = c.post("/auth/login", json={"username": username, "password": password})
+    assert r.status_code == 200, f"login {username} gagal: {r.text}"
+    return r.json()["access_token"]
+
+
+@pytest.fixture
+def client(client_anonim):
+    """TestClient yang sudah masuk sebagai admin bawaan.
+
+    Sebagian besar uji endpoint menyoal perilaku fiturnya, bukan lapisan
+    autentikasi; memakai admin membuat uji itu tetap ringkas. Penolakan
+    autentikasi dan otorisasi diuji tersendiri di `test_auth.py`.
+    """
+    token = _token(client_anonim, settings.admin_username, settings.admin_password)
+    client_anonim.headers.update({"Authorization": f"Bearer {token}"})
+    return client_anonim
+
+
+@pytest.fixture
+def buat_pengguna(client):
+    """Buat akun dengan peran tertentu, lalu kembalikan TestClient miliknya."""
+    dibuat = []
+
+    def buat(username, role, password="rahasia123"):
+        r = client.post(
+            "/auth/users", json={"username": username, "password": password, "role": role}
+        )
+        assert r.status_code in (200, 409), r.text
+        dibuat.append(username)
+
+        c = TestClient(main_module.app)
+        c.headers.update({"Authorization": f"Bearer {_token(c, username, password)}"})
+        return c
+
+    yield buat
+
+    db = SessionLocal()
+    try:
+        for username in dibuat:
+            db.query(User).filter(User.username == username).delete()
+        db.commit()
+    finally:
+        db.close()
 
 
 @pytest.fixture

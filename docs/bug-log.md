@@ -205,13 +205,14 @@ Mitigasi `bge-m3` (1024 dimensi) sudah disiapkan sejak D-02b.
 memakai tabel yang salah. Alur multi-tool dalam satu giliran juga tidak andal.
 Naik ke `qwen2.5:7b` hanya mengubah `OLLAMA_LLM_MODEL` di `.env`.
 
-### B-23 ⚠️ Authentication dan Authorization belum ada
-PRD §24 mencantumkan keduanya sebagai syarat Definition of Done, dan `.env`
-sudah menyediakan `JWT_SECRET_KEY`, `JWT_ALGORITHM`, `JWT_EXPIRE_MINUTES` —
-tetapi tidak ada kode yang memakainya. Seluruh endpoint terbuka tanpa
-autentikasi.
-
-Aman untuk pengembangan lokal, **tidak aman bila dipublikasikan**: `/upload`
-menerima berkas dari siapa saja dan `/chat` memakai kuota model. Syarat
-Security lain pada §24 sudah terpenuhi — validasi berkas, pembatasan SQL,
-mitigasi prompt injection, dan `.env` di luar Git.
+### B-23 ✅ Authentication dan Authorization belum ada
+**Gejala.** PRD §24 mencantumkan keduanya sebagai syarat Definition of Done,
+dan `.env` sudah menyediakan `JWT_SECRET_KEY` sejak Fase 1 — tetapi tidak ada
+satu baris kode pun yang memakainya. Seluruh endpoint terbuka.
+**Perbaikan.** `backend/auth.py`: kata sandi di-hash bcrypt, token JWT, dan
+dependency `wajib_peran()` yang menegakkan ADMIN / USER / READ_ONLY. Frontend
+mendapat layar masuk, dan token yang ditolak mengembalikannya ke layar itu
+alih-alih membiarkan permintaan berikutnya gagal satu per satu.
+**Catatan.** `AUTH_ENABLED=false` mematikannya untuk pengembangan lokal.
+Itu disengaja — sistem ini memang ditujukan berjalan di mesin sendiri — dan
+dicatat di log startup sebagai peringatan, bukan dibiarkan senyap.

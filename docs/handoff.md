@@ -7,7 +7,7 @@ menyambung tanpa mengulang pembahasan.
 
 ## Posisi saat ini
 
-**Fase 1 sampai 7 selesai. Berikutnya: Fase 8 — Demo & Finalization.**
+**Seluruh fase (1–8) selesai. Definition of Done PRD §24 terpenuhi.**
 
 Rincian tiap item ada di `checklist-progres.md` pada section "Log pengerjaan".
 Itu sumber kebenaran status, bukan dokumen ini.
@@ -41,7 +41,8 @@ praktek-ai-engineer/
 │   └── reindex.py, agent.py
 ├── frontend/       Vite + React + Tailwind, chat UI lengkap
 ├── storage/{uploads,processed}/
-└── docs/  tech-decisions.md (D-01 s/d D-14), bug-log.md, handoff.md
+└── docs/  tech-decisions.md (D-01 s/d D-15), bug-log.md,
+         demo.md, menjalankan.md, handoff.md
 ```
 
 Git ada di branch `main`, belum ada remote.
@@ -82,22 +83,39 @@ docker compose up -d backend    # benar — container dibuat ulang
 docker compose restart backend  # TIDAK membaca ulang .env
 ```
 
-## Langkah berikutnya — Fase 8: Demo & Finalization
+## Status akhir
 
-Sesuai `checklist-progres.md`: siapkan skenario demo, pastikan semua fitur
-utama berjalan, rapikan README final, dan tulis catatan cara menjalankan.
+Seluruh fase checklist selesai. Definition of Done PRD §24 terpenuhi untuk
+Backend dan Security, diverifikasi lewat `python -m backend.uji_dod`; tujuh
+butir Frontend diverifikasi di browser.
 
-Bahan demo sudah tersedia: dokumen contoh terindeks, data sample
-`pegawai`/`pengajuan_cuti`, dan `struk-uji.png` untuk OCR. Matriks uji
-PRD §17 (`python -m backend.uji_matriks`) bisa dipakai memeriksa semuanya
-sekaligus sebelum demo.
+Angka ringkas: **128 test** lulus, matriks uji PRD §17 **6/7** lulus penuh,
+dan seluruh jalur teks berjalan di bawah 1,5 detik.
 
-Satu hal yang perlu diputuskan sebelum demo: **SQL-001 hanya lulus 1 dari 3**
-karena model 3B kerap memakai tabel yang salah. Bila demo harus mulus, naik ke
-`qwen2.5:7b` (4,68 GB) hanya mengubah `OLLAMA_LLM_MODEL` di `.env`.
+Untuk memeriksa ulang kapan saja:
 
-Dan satu hal yang perlu disebut jujur saat presentasi: **Authentication dan
-Authorization belum ada** (B-23), padahal PRD §24 mensyaratkannya.
+```bash
+docker compose exec -w /app backend python -m pytest backend/tests -q
+docker compose exec -w /app backend python -m backend.uji_dod
+docker compose exec -w /app backend python -m backend.uji_matriks --ulang 3
+docker compose exec -w /app backend python -m backend.uji_performa
+```
+
+## Bila dilanjutkan
+
+Dua hal yang paling berdampak, keduanya hanya mengubah `.env` dan tidak
+menyentuh kode:
+
+1. **`bge-m3` menggantikan `nomic-embed-text`** (1,2 GB, `EMBEDDING_DIM=1024`,
+   perlu `ALTER TABLE` dan `reindex --jalan --paksa`). Ini memperbaiki
+   kelemahan yang paling banyak menurunkan mutu jawaban: margin skor bahasa
+   Indonesia yang nyaris tidak memisahkan dokumen benar dari yang salah.
+2. **`qwen2.5:7b` menggantikan `qwen2.5:3b`** (4,68 GB, muat di VRAM bersama
+   embedding). Ini memperbaiki perutean tool, penyusunan SQL, dan alur
+   multi-tool.
+
+PRD §25 juga menyebut arah pengembangan lanjutan yang belum disentuh sama
+sekali.
 
 ### Menyelesaikan sisa Fase 3 (kapan pun Ollama dipasang)
 
@@ -129,6 +147,7 @@ Authorization belum ada** (B-23), padahal PRD §24 mensyaratkannya.
 | D-12 | Nama berkas `<uuid>__<nama-asli>` | Tanpa ini gambar tidak pernah bisa dijangkau Image_OCR |
 | D-13 | Pertahanan prompt injection ditegakkan di kode | Model terbukti tidak bisa diandalkan menolak sendiri |
 | D-14 | LLM `qwen2.5:3b-instruct-q4_K_M` | 1,9 GB, lebih kecil dari llama3.2:3b, dan membuka blocker SQL Test |
+| D-15 | JWT + tiga peran, dengan sakelar mematikannya | PRD §18 & §24; sistem memang ditujukan jalan di mesin sendiri |
 
 ## Hal yang perlu diwaspadai
 
@@ -170,5 +189,5 @@ secara manual atau buat ulang dari `.env.example`.
 ## Cara memulai sesi berikutnya
 
 Jalankan `claude` di `/home/nzrl4h/praktek-ai-engineer`, lalu sampaikan
-kira-kira: *"lanjutkan Fase 8 Demo & Finalization, baca dulu docs/handoff.md
-dan checklist-progres.md"*.
+kira-kira: *"baca docs/handoff.md dan checklist-progres.md"*, lalu sebutkan apa
+yang ingin dikerjakan.

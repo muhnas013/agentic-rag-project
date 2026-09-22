@@ -1,19 +1,18 @@
 # Agentic RAG — Local AI System
 
-Sistem AI Assistant yang berjalan sepenuhnya di mesin lokal. LLM bertindak
-sebagai **Agent** yang memilih tool sesuai kebutuhan pertanyaan: mencari di
-dokumen (RAG), membaca teks dari gambar (OCR), atau mengambil data terstruktur
-(SQL).
+Sistem AI Assistant yang berjalan **sepenuhnya di mesin lokal**, tanpa satu
+pun panggilan ke layanan cloud. LLM bertindak sebagai **Agent** yang memilih
+sendiri tool sesuai kebutuhan pertanyaan: mencari di dokumen (RAG), membaca
+teks dari gambar (OCR), atau mengambil data terstruktur (SQL).
 
-Spesifikasi lengkap ada di [`prd.md`](./prd.md).
-Progres pengerjaan dicatat di [`checklist-progres.md`](./checklist-progres.md).
-Untuk menyambung pengerjaan, baca [`docs/handoff.md`](./docs/handoff.md).
+Spesifikasi lengkap: [`prd.md`](./prd.md) · Progres:
+[`checklist-progres.md`](./checklist-progres.md)
 
-## Arsitektur singkat
+## Arsitektur
 
 ```
 Frontend (Vite + React)
-        │  REST / JSON
+        │  REST / JSON + JWT
         ▼
 FastAPI  →  Agent Orchestrator (LangChain)
                     │
@@ -28,169 +27,98 @@ FastAPI  →  Agent Orchestrator (LangChain)
               Final Answer
 ```
 
+Backend dan database berjalan di Docker; Ollama berjalan di host agar
+mendapat akses GPU langsung.
+
 ## Stack
 
 | Lapisan   | Teknologi                                      |
 |-----------|------------------------------------------------|
-| Frontend  | ViteJS, React, TailwindCSS, Axios              |
-| Backend   | Python 3.12, FastAPI, Uvicorn, SQLAlchemy      |
-| Agent     | LangChain                                      |
-| LLM       | Ollama — `qwen2.5:7b-instruct-q4_K_M`          |
-| LLM (sementara) | Atria Dawn Preview lewat API, selama model lokal belum diunduh |
+| Frontend  | Vite 8, React 19, TailwindCSS 4, Axios         |
+| Backend   | Python 3.12, FastAPI, Uvicorn, SQLAlchemy 2    |
+| Agent     | LangChain 1.x (`create_agent`)                 |
+| LLM       | Ollama — `qwen2.5:3b-instruct-q4_K_M`          |
 | Embedding | Ollama — `nomic-embed-text` (768 dimensi)      |
-| OCR       | PaddleOCR                                      |
+| OCR       | PaddleOCR 3.x (CPU)                            |
 | Database  | PostgreSQL 16 + pgvector                       |
+| Auth      | JWT (PyJWT) + bcrypt                           |
 
-Alasan tiap pilihan: [`docs/tech-decisions.md`](./docs/tech-decisions.md).
+Alasan tiap pilihan: [`docs/tech-decisions.md`](./docs/tech-decisions.md)
+(D-01 s/d D-15).
 
-## Struktur project
+## Menjalankan
 
-```
-praktek-ai-engineer/
-├── backend/            # FastAPI, agent, tools, services
-│   ├── main.py         # endpoint REST
-│   ├── config.py       # seluruh setting dibaca dari .env
-│   ├── database.py     # dua engine: aplikasi dan SQL Agent read-only
-│   ├── models.py       # tabel chat_history dan documents
-│   ├── schemas.py      # skema request/response
-│   ├── tools/          # rag_tool, ocr_tool, sql_tool (Fase 4-5)
-│   ├── services/       # embedding, document, llm
-│   └── tests/
-├── docker/postgres/init/   # extension vector + user read-only
-├── frontend/           # Vite + React chat UI
-│   └── src/
-│       ├── components/ ChatBox, MessageBubble, UploadButton
-│       └── services/   api.js
-├── storage/
-│   ├── uploads/        # file mentah dari user
-│   └── processed/      # hasil olahan
-├── docs/               # catatan teknis
-├── prd.md
-└── checklist-progres.md
-```
+Panduan lengkap dari mesin kosong: [`docs/menjalankan.md`](./docs/menjalankan.md).
 
-## Persyaratan
-
-- Docker + Docker Compose
-- Node.js 18+ (untuk frontend)
-- Ollama di host machine
-- GPU NVIDIA 8 GB VRAM (opsional, tetapi mempercepat LLM dan OCR)
-
-### Model yang perlu diunduh
+Ringkasnya, bila Ollama dan modelnya sudah terpasang:
 
 ```bash
-ollama pull qwen2.5:7b-instruct-q4_K_M   # 4,7 GB — LLM Agent
-ollama pull nomic-embed-text             # 274 MB — embedding RAG
-```
-
-Keduanya residen bersamaan di VRAM saat RAG berjalan: ±5,5 GB dari 8 GB.
-
-## Cara menjalankan
-
-Backend dan database berjalan di Docker; Ollama nanti berjalan di host.
-
-```bash
-cp .env.example .env    # lalu sesuaikan kredensial
-docker compose up -d    # PostgreSQL + backend
+cp .env.example .env            # lalu sesuaikan kredensial
+docker compose up -d            # PostgreSQL + backend
 curl localhost:8000/health
+
+cd frontend && npm install && npm run dev
 ```
 
+Buka <http://localhost:5173>, masuk dengan `admin` / `admin`.
 Dokumentasi API interaktif: <http://localhost:8000/docs>.
 
-Perintah yang sering dipakai:
+> **Perubahan `.env` butuh `docker compose up -d backend`, bukan `restart`.**
+> `restart` memakai ulang environment yang dibekukan saat container dibuat,
+> sehingga nilai baru tidak pernah terbaca.
 
-```bash
-docker compose logs -f backend          # ikuti log
-docker compose up -d backend            # muat ulang setelah .env berubah
-                                        # (restart TIDAK membaca ulang .env)
-docker compose exec -w /app backend python -m pytest backend/tests -q
-docker compose down                     # berhenti (data tetap tersimpan)
-docker compose down -v                  # berhenti dan HAPUS isi database
-```
+## Endpoint
 
-Kode di `./backend` di-mount sebagai volume, jadi perubahan kode langsung
-dimuat ulang tanpa perlu build ulang. Perubahan `.env` dan `requirements.txt`
-tetap memerlukan `restart` atau `build`.
-
-### Endpoint yang sudah ada
-
-| Method | Path            | Keterangan                                   |
-|--------|-----------------|----------------------------------------------|
-| GET    | `/health`       | Status database, extension vector, dan model |
-| POST   | `/upload`       | Unggah `.pdf` `.txt` `.md` lalu diolah jadi embedding; gambar hanya disimpan sampai Fase 5 |
-| POST   | `/documents`    | Tambah dokumen dari teks langsung            |
-| GET    | `/documents`    | Daftar dokumen terindeks + jumlah potongan   |
-| POST   | `/query`        | Pencarian RAG mentah, tanpa LLM              |
-| POST   | `/chat`         | **Agent** memilih sendiri tool yang dipakai; `tool_used` menyebut hasilnya |
-| GET    | `/chat/history` | Riwayat percakapan satu sesi                 |
+| Method | Path | Peran minimal | Keterangan |
+|--------|------|---------------|------------|
+| POST | `/auth/login` | — | Tukar kredensial dengan token JWT |
+| GET | `/auth/me` | READ_ONLY | Identitas dan peran pemilik token |
+| POST | `/auth/users` | ADMIN | Tambah akun |
+| GET | `/auth/users` | ADMIN | Daftar akun |
+| GET | `/health` | — | Status database, pgvector, dan model |
+| POST | `/upload` | USER | Unggah dokumen atau gambar |
+| POST | `/documents` | USER | Tambah dokumen dari teks langsung |
+| GET | `/documents` | READ_ONLY | Daftar dokumen terindeks |
+| POST | `/query` | READ_ONLY | Pencarian RAG mentah, tanpa LLM |
+| POST | `/chat` | READ_ONLY | Jawaban dari Agent |
+| GET | `/chat/history` | READ_ONLY | Riwayat percakapan satu sesi |
 
 `/query` sengaja dipisah dari `/chat`: bila jawaban keliru, endpoint itu
-menunjukkan apakah penyebabnya ada pada pencarian atau pada model.
+menunjukkan apakah penyebabnya pada pencarian atau pada model.
 
-### Tool yang dimiliki Agent (PRD §8)
+## Tool yang dimiliki Agent
 
-| Tool | Kegunaan | Status |
-|------|----------|--------|
-| `RAG_Search` | Mencari di dokumen yang sudah diindeks | Berjalan |
-| `SQL_Query` | `SELECT` ke `chat_history` dan `documents` | Berjalan, hanya baca |
-| `Image_OCR` | Membaca teks dari gambar | Terdaftar; mesin OCR menyusul Fase 5 |
+| Tool | Kegunaan | Pengamanan |
+|------|----------|------------|
+| `RAG_Search` | Mencari di dokumen terindeks | Potongan bermuatan prompt injection dikarantina |
+| `SQL_Query` | `SELECT` ke tabel yang diizinkan | User read-only, allowlist tabel, `LIMIT` paksa, timeout |
+| `Image_OCR` | Membaca teks dari gambar | Path dibatasi ke folder unggahan |
 
-`SQL_Query` berlapis tiga: user PostgreSQL read-only dengan timeout, validasi
-query yang menolak selain `SELECT` beserta tabel di luar allowlist, dan
-`LIMIT` yang dipasang paksa.
+## Provider model
 
-### Frontend
-
-```bash
-cd frontend
-npm install
-npm run dev          # http://localhost:5173
-```
-
-Port 5173 harus cocok dengan `CORS_ORIGINS` di `.env` backend. Alamat backend
-diatur lewat `frontend/.env` (`VITE_API_BASE_URL`), bawaannya
-`http://localhost:8000`.
-
-Antarmukanya memuat gelembung percakapan dengan rendering Markdown, unggah
-berkas, indikator proses, penanganan galat, riwayat yang bertahan saat halaman
-dimuat ulang, serta lencana tool dan daftar potongan dokumen sumber beserta
-skor kemiripannya (PRD §15).
-
-### Provider model
-
-Target akhirnya Ollama sesuai PRD. Selama model lokal belum diunduh, LLM
-dilayani API yang OpenAI-compatible, diatur lewat `.env`:
+Ollama adalah target akhir, tetapi lapisan provider membuat backend bisa
+dialihkan ke API OpenAI-compatible tanpa mengubah kode:
 
 ```
-LLM_PROVIDER=openai_compatible      # ollama | openai_compatible
-EMBEDDING_PROVIDER=hash_stub        # ollama | openai_compatible | hash_stub
-LLM_API_KEY=atr_...                 # isi di sini
+LLM_PROVIDER=ollama              # ollama | openai_compatible
+EMBEDDING_PROVIDER=ollama        # ollama | openai_compatible | hash_stub
+OLLAMA_LLM_MODEL=qwen2.5:3b-instruct-q4_K_M
 ```
 
-`hash_stub` adalah embedding tanpa model, khusus pengembangan: cukup untuk
-menguji pipeline RAG, **tidak** untuk menilai mutu retrieval. Beralih ke
-Ollama pada Fase 3 cukup mengubah dua variabel pertama menjadi `ollama`.
-
-> **Penting.** Dokumen yang diindeks dengan satu model embedding harus
-> di-embedding ulang setelah berganti model. Vektor dua model berbeda tidak
-> sebanding, dan pencarian tetap mengembalikan hasil — hanya saja hasilnya
-> acak, sehingga kesalahan ini tidak terlihat kecuali sengaja diuji.
-
-Berkas asli tersimpan di `storage/uploads/`, jadi tidak perlu mengunggah
-ulang apa pun:
-
-```bash
-# periksa dulu: dokumen mana yang masih memakai model lama
-docker compose exec -w /app backend python -m backend.reindex
-
-# kerjakan
-docker compose exec -w /app backend python -m backend.reindex --jalan
-```
+> **Berganti model embedding mengharuskan seluruh dokumen diolah ulang.**
+> Vektor dua model berbeda tidak sebanding, dan pencarian tetap memberi
+> hasil — hanya saja acak, sehingga kesalahannya tidak terlihat. Berkas asli
+> tersimpan, jadi tidak perlu mengunggah ulang:
+>
+> ```bash
+> docker compose exec -w /app backend python -m backend.reindex          # periksa
+> docker compose exec -w /app backend python -m backend.reindex --jalan  # kerjakan
+> ```
 
 ## Pengujian
 
 ```bash
-# uji unit + kontrak endpoint (deterministik, memakai tiruan)
+# 128 test unit + kontrak endpoint (deterministik, memakai tiruan)
 docker compose exec -w /app backend python -m pytest backend/tests -q
 
 # matriks uji PRD §17 terhadap sistem yang berjalan
@@ -200,19 +128,51 @@ docker compose exec -w /app backend python -m backend.uji_matriks --ulang 3
 docker compose exec -w /app backend python -m backend.uji_performa
 ```
 
-Bug yang ditemukan sepanjang pengerjaan tercatat di [`docs/bug-log.md`](./docs/bug-log.md).
+Bug yang ditemukan sepanjang pengerjaan beserta penyebabnya:
+[`docs/bug-log.md`](./docs/bug-log.md).
 
 ## Keamanan
 
 Sesuai PRD §18, sistem menerapkan:
 
-- SQL Tool memakai user database **read-only** dengan allowlist tabel dan timeout
-- Validasi ekstensi, MIME type, ukuran, dan signature pada setiap file upload
-- Dokumen hasil retrieval diperlakukan sebagai **data**, bukan instruksi
-  (mitigasi prompt injection)
+- **Authentication** JWT, kata sandi disimpan sebagai hash bcrypt
+- **Authorization** tiga peran — ADMIN, USER, READ_ONLY
+- **SQL Tool** memakai user database read-only dengan allowlist tabel,
+  `LIMIT` paksa, dan timeout — ditegakkan pada level grant PostgreSQL,
+  bukan sekadar validasi di kode
+- **Validasi upload** ekstensi, MIME type, ukuran, dan signature berkas
+- **Mitigasi prompt injection** dua lapis: potongan dokumen bermuatan pola
+  pengambilalihan dikarantina saat masuk, dan jawaban yang mengutip system
+  prompt diganti penolakan
 - `.env` tidak pernah masuk ke Git
 
-> **Belum ada Authentication/Authorization.** PRD §24 mensyaratkan keduanya
-> dan `.env` sudah menyediakan setelan JWT, tetapi belum ada kode yang
-> memakainya — seluruh endpoint terbuka. Aman untuk pengembangan lokal,
-> tidak aman bila dipublikasikan. Lihat B-23 di `docs/bug-log.md`.
+`AUTH_ENABLED=false` mematikan autentikasi untuk pengembangan di mesin
+sendiri. Itu disengaja, dan ditulis sebagai peringatan di log startup.
+
+## Batasan yang diketahui
+
+Disebut apa adanya karena keduanya mempengaruhi mutu jawaban dan **tidak
+menimbulkan galat apa pun** — gejalanya hanya terlihat bila sengaja diuji.
+
+1. **`nomic-embed-text` lemah memisahkan makna dalam bahasa Indonesia.**
+   Selisih skor antara dokumen yang benar dan yang salah hanya +0,0018
+   sampai +0,0757, dibanding +0,18 ke atas pada bahasa Inggris untuk isi
+   yang sama. Akibatnya potongan yang tidak relevan ikut terambil.
+   Mitigasi: `bge-m3` (1024 dimensi), lihat D-02b.
+
+2. **Model 3B tidak selalu tepat memilih tool dan menyusun SQL.**
+   Pertanyaan yang menuntut JOIN benar sekitar 1 dari 3 kali, dan alur
+   multi-tool dalam satu giliran tidak andal. Naik ke `qwen2.5:7b` (4,68 GB,
+   muat di VRAM) hanya mengubah satu baris `.env`.
+
+## Dokumentasi
+
+| Berkas | Isi |
+|--------|-----|
+| [`prd.md`](./prd.md) | Spesifikasi (tidak diubah) |
+| [`checklist-progres.md`](./checklist-progres.md) | Status tiap fase + log pengerjaan |
+| [`docs/menjalankan.md`](./docs/menjalankan.md) | Pemasangan dari mesin kosong |
+| [`docs/demo.md`](./docs/demo.md) | Skenario peragaan |
+| [`docs/tech-decisions.md`](./docs/tech-decisions.md) | Keputusan teknis D-01 s/d D-15 |
+| [`docs/bug-log.md`](./docs/bug-log.md) | Bug, penyebab, dan perbaikannya |
+| [`docs/handoff.md`](./docs/handoff.md) | Catatan serah-terima antar sesi |

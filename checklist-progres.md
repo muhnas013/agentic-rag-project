@@ -3,7 +3,7 @@
 ## Status umum
 - [x] Project mulai didefinisikan
 - [x] PRD dibaca dan dipahami
-- [ ] Roadmap kerja dibuat
+- [x] Roadmap kerja dibuat
 - [x] Infrastruktur dasar disiapkan
 - [x] Backend utama berjalan
 - [x] RAG minimal berfungsi
@@ -15,7 +15,7 @@
 - [x] Agent orchestrator dasar selesai
 - [x] Pengujian end-to-end dilakukan
 - [x] Dokumentasi teknis dibuat
-- [ ] Project siap demo / presentasi
+- [x] Project siap demo / presentasi
 
 ## Fase 1: Persiapan & Foundation
 - [x] Review PRD dan scope project
@@ -82,11 +82,11 @@
 - [x] Simpan log / dokumentasi bug
 
 ## Fase 8: Demo & Finalization
-- [ ] Siapkan demo scenario
-- [ ] Cek semua fitur utama berjalan
-- [ ] Buat README final
-- [ ] Siapkan catatan deployment / run instruction
-- [ ] Lakukan demo / review akhir
+- [x] Siapkan demo scenario
+- [x] Cek semua fitur utama berjalan
+- [x] Buat README final
+- [x] Siapkan catatan deployment / run instruction
+- [x] Lakukan demo / review akhir
 
 ## Catatan update progres
 Gunakan format berikut saat update status:
@@ -895,6 +895,68 @@ salah dan kata sandi salah, karena pesan yang berbeda bisa dipakai menebak akun
 mana yang terdaftar. Ada test yang mengunci perilaku itu.
 
 Jumlah test: 104 -> 128, semuanya lulus.
+
+### Fase 8 — Demo & Finalization · selesai (22 Sep 2026)
+
+**Verifikasi Definition of Done PRD §24** dibuat sebagai skrip
+(`backend/uji_dod.py`). Tiap syarat diperiksa dengan menjalankan sesuatu yang
+benar-benar membuktikannya, bukan sekadar memastikan kodenya ada — misalnya
+"SQL restriction" tidak memeriksa keberadaan fungsi validasi, melainkan
+mencoba `DELETE FROM pegawai` lewat validasi **dan** lewat koneksi database.
+
+| Backend | | Security | |
+|---------|---|----------|---|
+| FastAPI berjalan | ✓ | Authentication | ✓ |
+| PostgreSQL terhubung | ✓ | Authorization | ✓ |
+| pgvector aktif | ✓ 0.8.6 | File validation | ✓ 3/3 ditolak |
+| Ollama berjalan | ✓ 3 model | SQL restriction | ✓ 4/4 + DB menolak |
+| RAG berhasil | ✓ | Prompt injection | ✓ dua lapis |
+| OCR berhasil | ✓ 11 baris | `.env` tidak masuk Git | ✓ |
+| SQL Tool berhasil | ✓ | | |
+| Agent memilih tool | ✓ 2/2 | | |
+
+Tujuh butir Frontend diverifikasi di browser sungguhan sepanjang Fase 6 dan
+pengerjaan autentikasi: chat UI, kirim pertanyaan, unggah dokumen, unggah
+gambar, tampilan jawaban, indikator proses, dan penanganan galat — semuanya
+lewat Chromium yang dikendalikan CDP.
+
+**Satu pemeriksaan sempat melaporkan gagal secara keliru.** Butir "`.env`
+tidak masuk Git" dijalankan dari dalam container, padahal container hanya
+mem-mount `./backend` dan `git` memang tidak dipasang di image. Yang tidak
+ada adalah alat pemeriksanya, bukan pemenuhannya. Pemeriksaannya kini
+melaporkan "perlu diperiksa di host" alih-alih "gagal" — melaporkan gagal
+dalam keadaan itu menyesatkan ke arah yang berbahaya, karena bisa memicu
+"perbaikan" atas sesuatu yang tidak rusak.
+
+Diverifikasi terpisah di host: `.env` tercakup `.gitignore`, tidak pernah
+tertrack, dan tidak pernah muncul di histori commit mana pun.
+
+**`docs/demo.md`** — skenario peragaan ±10 menit yang menunjukkan seluruh
+kemampuan sistem: autentikasi, keempat jalur perutean tool, penelusuran
+sumber, unggah dokumen, tiga uji keamanan, pemisahan peran, dan angka
+performa. Tiap langkah menyebutkan **apa yang harus terlihat**, supaya
+penyaji tahu kapan sesuatu berjalan tidak semestinya.
+
+Bagian "Yang perlu dihindari" ditulis dengan jujur: pertanyaan RAG tanpa kata
+"dokumen" kerap salah rute, pertanyaan SQL yang menuntut JOIN hanya benar
+sekitar 1 dari 3 kali, dan alur multi-tool tidak andal. Pertanyaan pada
+skenario sudah diuji berulang dan konsisten benar — "Tampilkan daftar pegawai
+di bagian TIK" dan "Berapa banyak pengajuan cuti yang statusnya diajukan?"
+keduanya 3/3.
+
+**`docs/menjalankan.md`** — pemasangan dari mesin kosong. Bagian jaringan
+diberi porsi khusus karena paling banyak menyita waktu: mengapa
+`host.docker.internal` tidak menolong, mengapa subnet Compose dipatok, dan
+mengapa aturan firewall dibatasi satu subnet alih-alih `0.0.0.0`.
+
+**README ditulis ulang** sebagai dokumen akhir, lengkap dengan tabel peran
+per endpoint, dan satu bagian "Batasan yang diketahui" yang menyebut kedua
+kelemahan apa adanya — keduanya tidak menimbulkan galat sama sekali, jadi
+menyembunyikannya berarti menyerahkan jebakan kepada pembaca berikutnya.
+
+Jumlah test tetap 128, semuanya lulus. Matriks PRD §17: 6/7 lulus penuh.
+
+**Blocker:** tidak ada.
 
 ---
 

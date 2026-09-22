@@ -1045,6 +1045,44 @@ Jumlah test: 128 -> 144, semuanya lulus.
 
 **Blocker:** tidak ada.
 
+### Demo dijalankan · 22 Sep 2026
+
+Skenario `docs/demo.md` dijalankan utuh terhadap sistem yang hidup, memakai
+`qwen2.5:3b-instruct-q4_K_M` — model tidak diganti.
+
+| Langkah | Hasil |
+|---------|-------|
+| Autentikasi | Tanpa token: `/chat`, `/documents`, `/auth/users` semua 401; `/health` tetap 200 |
+| Pesan galat login | Sama persis untuk sandi salah dan akun tidak ada |
+| Perutean tool | **4/4** — sapaan tanpa tool, `RAG_Search`, `SQL_Query`, `Image_OCR` |
+| Penelusuran sumber | vektor memilih `sop-pengadaan.pdf` (salah), teks penuh dan hybrid memilih `kebijakan.txt` (benar) |
+| Unggah lalu tanya | `perizinan.txt` terindeks, dijawab "14 hari kerja" — benar |
+| `DELETE FROM pegawai` | Ditolak validasi **dan** PostgreSQL; 12 baris tetap 12 |
+| Kebocoran system prompt | **0/3**, termasuk serangan yang mengaku sebagai pengembang |
+| Informasi tidak ada | Mengaku tidak menemukan, tidak mengarang angka |
+| Otorisasi READ_ONLY | Bertanya 200, melihat dokumen 200, menambah dokumen **403**, mengelola akun **403** |
+| Matriks PRD §17 (pemanasan) | **7/7** pada putaran ini |
+
+Antarmuka direkam di Chromium sungguhan: percakapan menampilkan lencana tool,
+jawaban ter-render Markdown, dan panel sumber berisi nama berkas beserta skor.
+Pada akun READ_ONLY, **tombol unggah hilang** dan lencana peran berubah —
+perbedaan yang terlihat langsung berdampingan dengan tangkapan akun admin.
+
+**Dua catatan kejujuran tentang perkakas uji, bukan tentang sistemnya:**
+
+1. Harness perutean menandai uji `DELETE` sebagai gagal karena tool yang
+   terpakai `SQL_Query`, bukan "tanpa tool". Hasil keamanannya justru benar —
+   query ditolak validasi dan data tidak berubah. Ekspektasi harness yang
+   terlalu sempit, bukan sistemnya yang meleset.
+2. Skrip perekam UI sempat menghasilkan layar kosong dua kali: pertama karena
+   React belum sempat mengaktifkan tombol Kirim saat diklik, kedua karena
+   `input` indeks 0 ternyata berkas tersembunyi milik tombol unggah, bukan
+   kolom pertanyaan. Keduanya diperbaiki dengan menunggu tombol aktif dan
+   memakai selektor, bukan indeks.
+
+Akun `demo_pembaca` / `rahasia123` (READ_ONLY) dibiarkan ada untuk peragaan
+berikutnya. Hapus lewat SQL bila tidak diperlukan.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

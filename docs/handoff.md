@@ -7,7 +7,8 @@ menyambung tanpa mengulang pembahasan.
 
 ## Posisi saat ini
 
-**Seluruh fase (1–8) selesai. Definition of Done PRD §24 terpenuhi.**
+**Seluruh fase (1–8) selesai, Definition of Done PRD §24 terpenuhi.
+Fase 9 berjalan: pengembangan lanjutan dari daftar PRD §25.**
 
 Rincian tiap item ada di `checklist-progres.md` pada section "Log pengerjaan".
 Itu sumber kebenaran status, bukan dokumen ini.
@@ -106,13 +107,17 @@ docker compose exec -w /app backend python -m backend.uji_performa
 Dua hal yang paling berdampak, keduanya hanya mengubah `.env` dan tidak
 menyentuh kode:
 
-1. **`bge-m3` menggantikan `nomic-embed-text`** (1,2 GB, `EMBEDDING_DIM=1024`,
-   perlu `ALTER TABLE` dan `reindex --jalan --paksa`). Ini memperbaiki
-   kelemahan yang paling banyak menurunkan mutu jawaban: margin skor bahasa
-   Indonesia yang nyaris tidak memisahkan dokumen benar dari yang salah.
-2. **`qwen2.5:7b` menggantikan `qwen2.5:3b`** (4,68 GB, muat di VRAM bersama
-   embedding). Ini memperbaiki perutean tool, penyusunan SQL, dan alur
+1. **`qwen2.5:7b` menggantikan `qwen2.5:3b`** (4,68 GB, muat di VRAM bersama
+   embedding). Ini yang paling berdampak sekarang: memperbaiki penyusunan SQL
+   (satu-satunya kasus PRD §17 yang belum lulus), perutean tool, dan alur
    multi-tool.
+2. **`bge-m3` menggantikan `nomic-embed-text`** (1,2 GB, `EMBEDDING_DIM=1024`,
+   perlu `ALTER TABLE` dan `reindex --jalan --paksa`). Masih membantu, tetapi
+   tidak lagi mendesak sejak hybrid search menutup sebagian besar dampaknya.
+
+Selebihnya, daftar PRD §25 yang belum dikerjakan ada di bagian Fase 9 pada
+`checklist-progres.md` — reranking, query rewriting, streaming response,
+dan multi-agent adalah yang paling dekat dengan yang sudah ada.
 
 PRD §25 juga menyebut arah pengembangan lanjutan yang belum disentuh sama
 sekali.
@@ -148,6 +153,7 @@ sekali.
 | D-13 | Pertahanan prompt injection ditegakkan di kode | Model terbukti tidak bisa diandalkan menolak sendiri |
 | D-14 | LLM `qwen2.5:3b-instruct-q4_K_M` | 1,9 GB, lebih kecil dari llama3.2:3b, dan membuka blocker SQL Test |
 | D-15 | JWT + tiga peran, dengan sakelar mematikannya | PRD §18 & §24; sistem memang ditujukan jalan di mesin sendiri |
+| D-16 | Hybrid search: vektor + teks penuh, RRF berbobot | Retrieval bahasa Indonesia naik dari 6/10 ke 9/10 |
 
 ## Hal yang perlu diwaspadai
 

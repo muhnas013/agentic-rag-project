@@ -216,3 +216,45 @@ alih-alih membiarkan permintaan berikutnya gagal satu per satu.
 **Catatan.** `AUTH_ENABLED=false` mematikannya untuk pengembangan lokal.
 Itu disengaja — sistem ini memang ditujukan berjalan di mesin sendiri — dan
 dicatat di log startup sebagai peringatan, bukan dibiarkan senyap.
+
+---
+
+## Fase 9 — Hybrid Search
+
+### B-24 ✅ Pencarian teks penuh mengembalikan kosong untuk setiap pertanyaan
+**Gejala.** Tidak ada. Persis itulah masalahnya: tidak ada galat, tidak ada
+peringatan, dan `/chat` tetap menjawab seperti biasa. Hybrid search seolah
+berjalan, padahal hasilnya sama persis dengan pencarian vektor saja.
+**Sebab.** `plainto_tsquery` menggabungkan seluruh kata dengan AND. Pertanyaan
+"berapa lama masa retensi dokumen kepegawaian" karena itu menuntut dokumen
+memuat "berapa" dan "lama" juga — kata yang tidak akan pernah ada di dokumen
+resmi. Setiap pertanyaan sewajarnya gagal cocok.
+**Cara ketahuannya.** Bukan dari log, melainkan dari tabel perbandingan tiga
+mode: kolom `fulltext` kosong seluruhnya sementara `hybrid` identik dengan
+`vector` sampai ke angka desimalnya. Kesamaan yang terlalu sempurna itulah
+petunjuknya.
+**Perbaikan.** `_tsquery_atau()` menulis ulang operator menjadi OR atas
+tsquery yang sudah dibersihkan `plainto_tsquery`, sehingga masukan pengguna
+tidak pernah masuk ke tsquery mentah. Dokumen yang memuat lebih banyak kata
+tetap naik sendirinya lewat `ts_rank`.
+**Sesudahnya:** peringkat 1 benar naik dari 2/5 menjadi 4/5 pada himpunan
+uji pertama, dan 6/10 menjadi 9/10 pada himpunan yang diperluas.
+
+### B-25 ✅ Penggabungan berbobot sama memperburuk hasil
+**Gejala.** Hybrid (8/10) lebih buruk daripada teks penuh sendirian (9/10).
+**Sebab.** RRF dengan bobot seragam memperlakukan kedua jalur seolah sama
+andalnya, padahal jalur vektor benar 6/10 dan teks penuh 9/10. Jalur yang
+lebih lemah menarik hasil yang benar turun dari peringkat satu.
+**Perbaikan.** Bobot dipisah dan dipilih lewat pengukuran atas delapan
+kombinasi. Bobot 1 : 2 mengembalikan hybrid ke 9/10 sekaligus
+mempertahankan 10/10 untuk "benar dalam 3 teratas".
+
+### B-26 ✅ Asumsi tentang stemmer ditulis ke dalam test
+**Gejala.** Test gagal: "aturan pegawai" tidak menemukan dokumen berisi
+"kepegawaian".
+**Sebab.** Saya menduga keduanya berakar sama. Ternyata tidak —
+"kepegawaian" menjadi "gawai", "pegawai" menjadi "gawa".
+**Perbaikan.** Test diganti memakai pasangan yang benar-benar menyatu
+("bekerja"/"pekerjaan"), dan ditambahkan satu test yang **mengunci
+ketidakkonsistenan itu apa adanya**, sehingga bila PostgreSQL kelak
+memperbaikinya, catatan di D-16 ikut ketahuan perlu diperbarui.

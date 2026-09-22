@@ -52,7 +52,7 @@
 - [x] Definisikan tool SQL
 - [x] Agent dapat memilih tool berdasarkan pertanyaan
 - [x] Uji routing tool secara dasar
-- [!] Uji multi-tool workflow (berhasil dengan Atria; qwen2.5:3b tidak andal — lihat log)
+- [x] Uji multi-tool workflow (andal bila langkahnya disebut eksplisit — lihat log)
 
 ## Fase 5: OCR & Data Terstruktur
 - [x] Setup PaddleOCR
@@ -87,6 +87,28 @@
 - [x] Buat README final
 - [x] Siapkan catatan deployment / run instruction
 - [x] Lakukan demo / review akhir
+
+## Fase 9: Pengembangan Lanjutan (PRD §25)
+
+Dikerjakan setelah kedelapan fase MVP selesai, mengambil dari daftar
+Future Development pada PRD §25.
+
+- [x] Hybrid Search: BM25 + Vector Search
+- [x] Citation / source tracking (panel sumber di UI, sejak Fase 6)
+- [x] Role-based access control (sejak pengerjaan autentikasi)
+- [x] Conversation memory (riwayat sesi dikirim sebagai konteks)
+- [ ] Reranking
+- [ ] Query rewriting
+- [ ] Streaming response
+- [ ] Multi-Agent (Supervisor Agent)
+- [ ] Document versioning
+- [ ] User-specific knowledge base
+- [ ] Observability dan tracing
+- [ ] Evaluation pipeline
+- [ ] Redis untuk caching
+- [ ] Celery/RQ untuk background processing
+- [ ] MinIO/S3 untuk object storage
+- [ ] Kubernetes untuk deployment skala besar
 
 ## Catatan update progres
 Gunakan format berikut saat update status:
@@ -955,6 +977,71 @@ kelemahan apa adanya — keduanya tidak menimbulkan galat sama sekali, jadi
 menyembunyikannya berarti menyerahkan jebakan kepada pembaca berikutnya.
 
 Jumlah test tetap 128, semuanya lulus. Matriks PRD §17: 6/7 lulus penuh.
+
+**Blocker:** tidak ada.
+
+### Fase 9 — Hybrid Search (PRD §25) · selesai (22 Sep 2026)
+
+Dipilih dari daftar Future Development karena menyerang kelemahan yang paling
+banyak menurunkan mutu jawaban sepanjang project ini: **retrieval, bukan model
+bahasanya**. Dan tidak memerlukan unduhan model baru sama sekali.
+
+**Hasil pengukuran** pada sepuluh pertanyaan parafrase — kata-katanya sengaja
+dibuat berbeda dari isi dokumen, supaya yang diuji kemampuan mencari, bukan
+kemampuan mencocokkan huruf:
+
+| Konfigurasi | Peringkat 1 benar | Benar dalam 3 teratas |
+|-------------|-------------------|-----------------------|
+| Vektor saja (sebelumnya) | 6/10 | 8/10 |
+| Teks penuh saja | 9/10 | 10/10 |
+| **Hybrid, bobot (1, 2)** | **9/10** | **10/10** |
+
+Tiga pertanyaan parafrase yang dulu dijawab dari dokumen yang salah kini benar
+semuanya lewat Agent: masa penyimpanan berkas pegawai berhenti (10 tahun),
+penyetuju pemusnahan arsip (Kepala Bagian Umum, Pasal 2), dan syarat cuti
+besar (6 tahun).
+
+**Kuncinya konfigurasi `indonesian` bawaan PostgreSQL**, yang melakukan
+stemming sungguhan: "bekerja" dan "pekerjaan" sama-sama menjadi "kerja".
+Justru di titik embedding lemah, pencocokan istilah bekerja baik.
+
+**Tiga bug ditemukan, dan cara ditemukannya patut dicatat.**
+
+1. **Jalur teks penuh mengembalikan kosong untuk setiap pertanyaan** (B-24).
+   `plainto_tsquery` meng-AND seluruh kata, sehingga "berapa lama masa retensi
+   dokumen" menuntut dokumen memuat "berapa" dan "lama" juga. Tidak ada galat
+   sama sekali — fiturnya hanya diam-diam tidak berbuat apa-apa, dan hybrid
+   meneruskan hasil vektor apa adanya.
+
+   Ketahuannya bukan dari log, melainkan dari tabel perbandingan tiga mode:
+   kolom `fulltext` kosong seluruhnya sementara `hybrid` identik dengan
+   `vector` **sampai ke angka desimalnya**. Kesamaan yang terlalu sempurna
+   itulah petunjuknya. Endpoint `/query` yang sejak Fase 2 sengaja dipisah
+   dari `/chat` akhirnya terbayar persis untuk keperluan ini.
+
+2. **Penggabungan berbobot sama memperburuk hasil** (B-25). Hybrid 8/10, kalah
+   dari teks penuh sendirian 9/10 — jalur yang lebih lemah menarik hasil benar
+   ke bawah. Bobot dipilih dari pengukuran atas delapan kombinasi, bukan
+   tebakan.
+
+3. **Asumsi saya tentang stemmer ikut tertulis ke dalam test** (B-26). Saya
+   menduga "kepegawaian" dan "pegawai" berakar sama; ternyata menjadi "gawai"
+   dan "gawa". Test diganti memakai pasangan yang benar-benar menyatu, dan
+   ditambahkan satu test yang mengunci ketidakkonsistenan itu apa adanya —
+   sehingga bila PostgreSQL kelak memperbaikinya, catatan di D-16 ikut
+   ketahuan perlu diperbarui.
+
+**Item checklist Fase 4 yang tersisa ditutup.** Alur multi-tool ternyata
+**andal 3 dari 3** bila langkahnya disebut eksplisit ("cek dokumen untuk X,
+lalu cek database untuk Y"), dan gagal 0 dari 3 bila hanya dirangkai dengan
+"dan". Ini ketergantungan pada frasa, bukan ketidakmampuan — dan lebih berguna
+dicatat begitu daripada disebut "tidak andal".
+
+**Yang tidak berubah:** matriks PRD §17 tetap 6/7. SQL-001 memang soal
+penyusunan query oleh model, bukan pencarian, jadi perbaikan retrieval tidak
+menyentuhnya.
+
+Jumlah test: 128 -> 144, semuanya lulus.
 
 **Blocker:** tidak ada.
 

@@ -13,7 +13,8 @@ from pathlib import Path
 from typing import Any, BinaryIO
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from sqlalchemy import delete, func, select
+from sqlalchemy import Text, cast, delete, func, literal_column, select
+from sqlalchemy.dialects.postgresql import TSQUERY
 from sqlalchemy.orm import Session
 
 from backend.config import settings
@@ -384,46 +385,175 @@ def filter_relevant(
     return disaring
 
 
-async def search_similar_chunks(
-    db: Session,
-    query: str,
-    top_k: int | None = None,
-) -> list[RetrievedChunk]:
-    """Cari potongan dokumen paling mirip dengan pertanyaan (PRD §9).
-
-    `score` adalah kemiripan cosine dalam rentang 0..1; makin besar makin
-    mirip. pgvector mengembalikan jaraknya, jadi nilainya dibalik di sini.
-    """
-    limit = top_k or settings.rag_top_k
-    query_vector = await embed_query(query)
-
-    distance = Document.embedding.cosine_distance(query_vector).label("distance")
+def _kondisi_dasar() -> list:
+    """Syarat yang berlaku untuk semua jalur pencarian."""
     kondisi = [Document.embedding.is_not(None)]
-
     if settings.rag_quarantine_suspicious:
         # Potongan yang ditandai saat masuk tidak pernah ikut hasil pencarian.
-        # Penyaringan dilakukan di SQL, bukan setelahnya, supaya potongan
-        # bersih berikutnya naik mengisi kuota top_k.
+        # Disaring di SQL, bukan sesudahnya, supaya potongan bersih berikutnya
+        # naik mengisi kuota.
         kondisi.append(
             func.coalesce(
                 func.jsonb_array_length(Document.doc_metadata["injection_flags"]), 0
-            ) == 0
+            )
+            == 0
         )
+    return kondisi
+
+
+def _jadikan_potongan(document: Document, skor: float) -> RetrievedChunk:
+    return RetrievedChunk(
+        id=document.id,
+        filename=document.filename,
+        content=document.content,
+        score=round(float(skor), 4),
+        metadata=document.doc_metadata or {},
+    )
+
+
+async def search_vector(db: Session, query: str, limit: int) -> list[RetrievedChunk]:
+    """Pencarian kemiripan makna lewat pgvector (PRD §9).
+
+    `score` adalah kemiripan cosine 0..1; makin besar makin mirip. pgvector
+    mengembalikan jaraknya, jadi nilainya dibalik di sini.
+    """
+    query_vector = await embed_query(query)
+    distance = Document.embedding.cosine_distance(query_vector).label("distance")
 
     rows = db.execute(
         select(Document, distance)
-        .where(*kondisi)
+        .where(*_kondisi_dasar())
         .order_by(distance)
         .limit(limit)
     ).all()
 
+    return [_jadikan_potongan(d, 1.0 - float(dist)) for d, dist in rows]
+
+
+def _tsquery_atau(query: str):
+    """Susun tsquery yang mencocokkan sebagian kata, bukan seluruhnya.
+
+    `plainto_tsquery` menggabungkan semua kata dengan AND, sehingga
+    pertanyaan sewajarnya tidak pernah cocok: "berapa lama masa retensi
+    dokumen kepegawaian" menuntut dokumen memuat "berapa" dan "lama" juga.
+    Pada pengujian pertama, kekeliruan ini membuat jalur teks penuh
+    mengembalikan kosong untuk **setiap** pertanyaan — dan karena
+    penggabungan RRF tetap berjalan, hasilnya diam-diam sama persis dengan
+    pencarian vektor saja. Tidak ada galat, hanya fitur yang tidak berbuat
+    apa-apa.
+
+    Operatornya diganti menjadi OR lewat penulisan ulang teks tsquery yang
+    sudah dibersihkan `plainto_tsquery`, jadi masukan pengguna tidak pernah
+    masuk ke tsquery mentah. Dokumen yang memuat lebih banyak kata tetap
+    naik ke atas dengan sendirinya lewat `ts_rank`.
+    """
+    bahasa = settings.rag_fts_language
+    return cast(
+        func.replace(cast(func.plainto_tsquery(bahasa, query), Text), " & ", " | "),
+        TSQUERY,
+    )
+
+
+def search_fulltext(db: Session, query: str, limit: int) -> list[RetrievedChunk]:
+    """Pencarian teks penuh PostgreSQL (PRD §25 - Hybrid Search).
+
+    Melengkapi pencarian vektor, bukan menggantikannya. Keduanya gagal pada
+    hal yang berbeda: vektor meleset ketika istilahnya persis tetapi
+    konteksnya asing, sedangkan teks penuh meleset ketika pertanyaannya
+    parafrase. Pada bahasa Indonesia jalur ini justru lebih dapat diandalkan,
+    karena konfigurasi `indonesian` PostgreSQL melakukan stemming sungguhan —
+    "kepegawaian" dan "pegawai" sama-sama menjadi "gawai".
+    """
+    # Kolom dihitung PostgreSQL sendiri, jadi tidak ada padanannya di model.
+    kolom_tsv = literal_column("content_tsv")
+    tsquery = _tsquery_atau(query)
+    peringkat = func.ts_rank(kolom_tsv, tsquery).label("peringkat")
+
+    rows = db.execute(
+        select(Document, peringkat)
+        .where(*_kondisi_dasar(), kolom_tsv.op("@@")(tsquery))
+        .order_by(peringkat.desc())
+        .limit(limit)
+    ).all()
+
+    return [_jadikan_potongan(d, skor) for d, skor in rows]
+
+
+def gabung_rrf(
+    *peringkat: list[RetrievedChunk],
+    bobot: tuple[float, ...] | None = None,
+    k: int | None = None,
+    limit: int = 4,
+) -> list[RetrievedChunk]:
+    """Gabungkan beberapa daftar hasil memakai Reciprocal Rank Fusion.
+
+    Skor kedua jalur tidak sebanding — kemiripan cosine berkisar 0..1
+    sementara `ts_rank` punya skala sendiri — sehingga menjumlahkannya
+    langsung tidak bermakna. RRF hanya memakai **urutan**, bukan nilainya:
+    tiap potongan mendapat 1/(k + peringkat) dari setiap daftar.
+
+    Efeknya, potongan yang muncul di kedua daftar naik ke atas walau tidak
+    menjuarai salah satunya — dan itulah yang dicari dari penggabungan ini.
+
+    `bobot` memberi tiap daftar pengaruh berbeda. Itu diperlukan karena
+    kedua jalur di sini tidak sama andalnya: pada pengujian, pencarian teks
+    penuh benar 4 dari 5 sementara vektor hanya 2 dari 5, sehingga
+    penggabungan berbobot sama justru menarik hasil yang benar ke bawah.
+    """
+    k = settings.rag_rrf_k if k is None else k
+    if bobot is None:
+        bobot = (1.0,) * len(peringkat)
+
+    skor: dict[int, float] = {}
+    asal: dict[int, RetrievedChunk] = {}
+
+    for daftar, w in zip(peringkat, bobot):
+        for urutan, potongan in enumerate(daftar, start=1):
+            skor[potongan.id] = skor.get(potongan.id, 0.0) + w / (k + urutan)
+            asal.setdefault(potongan.id, potongan)
+
+    terbaik = sorted(skor.items(), key=lambda x: x[1], reverse=True)[:limit]
     return [
         RetrievedChunk(
-            id=document.id,
-            filename=document.filename,
-            content=document.content,
-            score=round(1.0 - float(dist), 4),
-            metadata=document.doc_metadata or {},
+            id=asal[i].id,
+            filename=asal[i].filename,
+            content=asal[i].content,
+            score=round(nilai, 5),
+            metadata=asal[i].metadata,
         )
-        for document, dist in rows
+        for i, nilai in terbaik
     ]
+
+
+async def search_similar_chunks(
+    db: Session,
+    query: str,
+    top_k: int | None = None,
+    mode: str | None = None,
+) -> list[RetrievedChunk]:
+    """Cari potongan dokumen yang paling relevan (PRD §9 dan §25).
+
+    Args:
+        mode: `hybrid`, `vector`, atau `fulltext`. Bawaannya mengikuti
+            `RAG_HYBRID_ENABLED`. Berguna untuk membandingkan ketiganya
+            saat menelusuri jawaban yang meleset.
+    """
+    limit = top_k or settings.rag_top_k
+    mode = mode or ("hybrid" if settings.rag_hybrid_enabled else "vector")
+
+    if mode == "vector":
+        return await search_vector(db, query, limit)
+    if mode == "fulltext":
+        return search_fulltext(db, query, limit)
+
+    # Tiap jalur mengambil lebih banyak daripada yang diminta, supaya
+    # penggabungan punya bahan untuk saling mengangkat.
+    lebar = max(limit * 3, 10)
+    vektor = await search_vector(db, query, lebar)
+    teks = search_fulltext(db, query, lebar)
+    return gabung_rrf(
+        vektor,
+        teks,
+        bobot=(settings.rag_bobot_vektor, settings.rag_bobot_teks),
+        limit=limit,
+    )

@@ -106,6 +106,19 @@ class Settings(BaseSettings):
     # disingkirkan dari hasil pencarian (PRD §18).
     rag_quarantine_suspicious: bool = True
 
+    # Hybrid search: hasil pencarian vektor digabung dengan pencarian
+    # teks penuh PostgreSQL (PRD §25). Keduanya saling menutupi —
+    # vektor menangkap makna, teks penuh menangkap istilah yang persis.
+    rag_hybrid_enabled: bool = True
+    rag_fts_language: str = "indonesian"
+    # Konstanta peredam pada Reciprocal Rank Fusion. Nilai 60 adalah
+    # anjuran dari makalah aslinya dan lazim dipakai apa adanya.
+    rag_rrf_k: int = 60
+    # Bobot tiap jalur pada penggabungan. Tidak sama besar karena keduanya
+    # tidak sama andalnya pada korpus berbahasa Indonesia — lihat D-16.
+    rag_bobot_vektor: float = 1.0
+    rag_bobot_teks: float = 2.0
+
     # --- Upload ---
     upload_dir: Path = PROJECT_ROOT / "storage" / "uploads"
     processed_dir: Path = PROJECT_ROOT / "storage" / "processed"

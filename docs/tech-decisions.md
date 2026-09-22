@@ -384,3 +384,50 @@ sandinya diambil dari `.env` dan log startup mengingatkan untuk menggantinya.
 **Rincian kecil yang disengaja:** pesan galat login dibuat sama persis untuk
 nama pengguna yang salah dan kata sandi yang salah. Pesan yang berbeda bisa
 dipakai menebak akun mana yang terdaftar. Ada test yang mengunci perilaku ini.
+
+### D-16 — Hybrid search: pencarian vektor digabung pencarian teks penuh
+
+**Masalah.** Kelemahan yang paling banyak menurunkan mutu jawaban sepanjang
+project ini adalah retrieval, bukan model bahasanya. `nomic-embed-text`
+memisahkan makna dalam bahasa Indonesia dengan margin yang nyaris tidak ada
+(B-21). Diukur pada sepuluh pertanyaan parafrase, pencarian vektor hanya
+menempatkan dokumen yang benar di peringkat satu **6 dari 10** kali.
+
+**Keputusan.** Ditambahkan jalur kedua sesuai PRD §25: pencarian teks penuh
+PostgreSQL, digabung dengan hasil vektor memakai Reciprocal Rank Fusion.
+Tidak ada model baru yang diunduh, dan tidak ada layanan tambahan.
+
+PostgreSQL 16 menyediakan konfigurasi `indonesian` dengan stemming sungguhan —
+"bekerja" dan "pekerjaan" sama-sama menjadi "kerja", "disimpan" dan
+"penyimpanan" menjadi "simpan". Justru di titik embedding lemah itulah
+pencocokan istilah bekerja baik.
+
+**Hasil pengukuran** pada sepuluh pertanyaan parafrase:
+
+| Konfigurasi | Peringkat 1 benar | Benar dalam 3 teratas |
+|-------------|-------------------|-----------------------|
+| Vektor saja (sebelumnya) | 6/10 | 8/10 |
+| Teks penuh saja | 9/10 | 10/10 |
+| **Hybrid, bobot (1, 2)** | **9/10** | **10/10** |
+
+**Bobotnya tidak sama besar, dan itu disengaja.** Penggabungan berbobot sama
+menghasilkan 8/10 — lebih buruk daripada teks penuh sendirian. Jalur yang
+lebih lemah menarik hasil yang benar ke bawah. Bobot 1 : 2 dipilih dari
+pengukuran, bukan tebakan, dan angkanya dapat diubah lewat `.env` bila
+korpusnya berganti sifat.
+
+**Mengapa vektor tetap dipertahankan** walau sendirian kalah: keduanya gagal
+pada hal yang berbeda. Teks penuh buta terhadap pertanyaan yang tidak berbagi
+satu kata pun dengan dokumennya, dan stemmer Indonesia PostgreSQL sendiri
+tidak konsisten — "kepegawaian" menjadi "gawai" sementara "pegawai" menjadi
+"gawa", dua lexeme yang tidak saling mencocokkan. Ada test yang mengunci
+kenyataan itu, sehingga bila PostgreSQL kelak memperbaikinya, catatan ini
+ikut ketahuan perlu diperbarui.
+
+**Kolom `content_tsv` dihitung PostgreSQL sendiri** (`GENERATED ALWAYS AS ...
+STORED`), bukan diisi kode aplikasi. Dengan begitu tidak ada jalur kode yang
+bisa lupa memperbaruinya saat isi dokumen berubah.
+
+`POST /query` menerima `mode` berisi `hybrid`, `vector`, atau `fulltext`.
+Membandingkan ketiganya memperlihatkan jalur mana yang meleset saat sebuah
+jawaban keliru — dan itulah yang membongkar bug B-24.

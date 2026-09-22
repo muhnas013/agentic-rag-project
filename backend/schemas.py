@@ -53,6 +53,9 @@ class DocumentSummary(BaseModel):
 class QueryRequest(BaseModel):
     query: str = Field(min_length=1)
     top_k: int | None = Field(default=None, ge=1, le=20)
+    # Membandingkan ketiganya memperlihatkan jalur mana yang meleset saat
+    # sebuah jawaban keliru (PRD §25 - Hybrid Search).
+    mode: Literal["hybrid", "vector", "fulltext"] | None = None
 
 
 class QueryResponse(BaseModel):

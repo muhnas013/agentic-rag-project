@@ -68,6 +68,33 @@ def ensure_vector_extension() -> None:
         conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
 
 
+def ensure_fulltext_index() -> None:
+    """Siapkan kolom dan index pencarian teks penuh (PRD §25).
+
+    Kolomnya dihitung PostgreSQL sendiri (`GENERATED ALWAYS AS ... STORED`),
+    jadi tidak ada jalur kode yang bisa lupa memperbaruinya saat isi dokumen
+    berubah.
+
+    Perintahnya idempoten sehingga aman dijalankan tiap start. Mengganti
+    `RAG_FTS_LANGUAGE` tidak otomatis mengubah kolom yang sudah ada —
+    definisinya terlanjur melekat; kolomnya harus di-drop lebih dulu.
+    """
+    bahasa = settings.rag_fts_language
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                f"ALTER TABLE documents ADD COLUMN IF NOT EXISTS content_tsv tsvector "
+                f"GENERATED ALWAYS AS (to_tsvector('{bahasa}', content)) STORED"
+            )
+        )
+        conn.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_documents_content_tsv "
+                "ON documents USING GIN (content_tsv)"
+            )
+        )
+
+
 def init_database() -> None:
     """Siapkan extension lalu buat tabel yang belum ada.
 
@@ -78,6 +105,7 @@ def init_database() -> None:
 
     ensure_vector_extension()
     Base.metadata.create_all(bind=engine)
+    ensure_fulltext_index()
 
 
 def check_database_connection() -> bool:

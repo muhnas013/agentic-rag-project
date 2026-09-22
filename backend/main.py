@@ -402,7 +402,7 @@ async def query_documents(
     """
     try:
         chunks = await document_service.search_similar_chunks(
-            db, payload.query, payload.top_k
+            db, payload.query, payload.top_k, mode=payload.mode
         )
     except EmbeddingError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, str(exc)) from exc

@@ -39,6 +39,7 @@ mendapat akses GPU langsung.
 | Agent     | LangChain 1.x (`create_agent`)                 |
 | LLM       | Ollama — `qwen2.5:3b-instruct-q4_K_M`          |
 | Embedding | Ollama — `nomic-embed-text` (768 dimensi)      |
+| Pencarian | Hybrid — pgvector + PostgreSQL full-text (RRF) |
 | OCR       | PaddleOCR 3.x (CPU)                            |
 | Database  | PostgreSQL 16 + pgvector                       |
 | Auth      | JWT (PyJWT) + bcrypt                           |
@@ -79,18 +80,19 @@ Dokumentasi API interaktif: <http://localhost:8000/docs>.
 | POST | `/upload` | USER | Unggah dokumen atau gambar |
 | POST | `/documents` | USER | Tambah dokumen dari teks langsung |
 | GET | `/documents` | READ_ONLY | Daftar dokumen terindeks |
-| POST | `/query` | READ_ONLY | Pencarian RAG mentah, tanpa LLM |
+| POST | `/query` | READ_ONLY | Pencarian RAG mentah, tanpa LLM; `mode` = `hybrid`/`vector`/`fulltext` |
 | POST | `/chat` | READ_ONLY | Jawaban dari Agent |
 | GET | `/chat/history` | READ_ONLY | Riwayat percakapan satu sesi |
 
 `/query` sengaja dipisah dari `/chat`: bila jawaban keliru, endpoint itu
-menunjukkan apakah penyebabnya pada pencarian atau pada model.
+menunjukkan apakah penyebabnya pada pencarian atau pada model. Parameter
+`mode` membandingkan ketiga jalur pencarian — itulah yang membongkar B-24.
 
 ## Tool yang dimiliki Agent
 
 | Tool | Kegunaan | Pengamanan |
 |------|----------|------------|
-| `RAG_Search` | Mencari di dokumen terindeks | Potongan bermuatan prompt injection dikarantina |
+| `RAG_Search` | Mencari di dokumen terindeks, **hybrid**: vektor + teks penuh | Potongan bermuatan prompt injection dikarantina |
 | `SQL_Query` | `SELECT` ke tabel yang diizinkan | User read-only, allowlist tabel, `LIMIT` paksa, timeout |
 | `Image_OCR` | Membaca teks dari gambar | Path dibatasi ke folder unggahan |
 
@@ -157,8 +159,12 @@ menimbulkan galat apa pun** — gejalanya hanya terlihat bila sengaja diuji.
 1. **`nomic-embed-text` lemah memisahkan makna dalam bahasa Indonesia.**
    Selisih skor antara dokumen yang benar dan yang salah hanya +0,0018
    sampai +0,0757, dibanding +0,18 ke atas pada bahasa Inggris untuk isi
-   yang sama. Akibatnya potongan yang tidak relevan ikut terambil.
-   Mitigasi: `bge-m3` (1024 dimensi), lihat D-02b.
+   yang sama.
+
+   **Sebagian besar dampaknya sudah ditutup hybrid search** (D-16): peringkat
+   1 benar naik dari 6/10 menjadi 9/10 pada pertanyaan parafrase. Mengganti
+   embedding ke `bge-m3` (D-02b) masih akan membantu, tetapi tidak lagi
+   mendesak.
 
 2. **Model 3B tidak selalu tepat memilih tool dan menyusun SQL.**
    Pertanyaan yang menuntut JOIN benar sekitar 1 dari 3 kali, dan alur

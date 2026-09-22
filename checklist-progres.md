@@ -1371,6 +1371,42 @@ produksi lolos (CSS 36,5 kB → 7,4 kB gzip).
 
 Backend tidak disentuh; 170 test tetap lulus.
 
+### Kolom pertanyaan jadi textarea yang tumbuh sendiri · selesai (22 Sep 2026)
+
+Diminta pengguna, menindaklanjuti catatan pada perombakan tampilan:
+kolom pertanyaan masih `<input>` satu baris, sehingga pertanyaan panjang
+tergulir mendatar di ruang sempit dan tidak bisa dibaca utuh sebelum
+dikirim.
+
+Diganti `<textarea>` dengan tinggi mengikuti isinya, berhenti tumbuh di
+176px lalu bergulir sendiri. **Enter mengirim, Shift+Enter menambah baris.**
+
+Tiga hal yang menentukan benar-tidaknya:
+
+1. **Tinggi disesuaikan lewat efek atas `masukan`, bukan di dalam
+   `onChange`.** Isi kolom berubah lewat empat jalur — diketik, dikosongkan
+   setelah kirim, diisi setelah unggahan, dan diisi dari panel dokumen.
+   Menempelkannya pada `onChange` hanya menangani satu dari empat.
+2. **Tingginya dinolkan dulu sebelum diukur.** Tanpa itu `scrollHeight`
+   tidak pernah mengecil, dan kolomnya hanya bisa membesar — tidak pernah
+   menyusut kembali setelah teksnya dihapus.
+3. **`isComposing` diperiksa sebelum mengirim.** Papan ketik yang memakai
+   penyusunan aksara (IME) juga memakai Enter untuk memilih kandidat; tanpa
+   pemeriksaan itu pertanyaan terkirim separuh jadi tepat saat diketik.
+
+Tombol lampiran dan kirim dipindah ke dasar bilah (`items-end`) supaya tidak
+ikut turun-naik ketika kolomnya memanjang. Keterangan di bawah bilah
+menyebutkan pintasannya, memakai elemen `<kbd>`.
+
+**Diuji di browser**, terukur bukan sekadar dilihat: tinggi satu baris 36px,
+Shift+Enter tumbuh ke 56px tanpa mengirim, berhenti di 176px lalu bergulir,
+Enter mengirim pesan 14 baris, kolom menyusut kembali ke 36px, dan isian
+dari panel dokumen menyesuaikan tinggi. Pesan banyak baris tampil dengan
+pemenggalan barisnya utuh. Alur kirim juga diuji terhadap backend
+sungguhan lewat tombol Enter. Tidak ada galat konsol.
+
+Peringatan lint tetap 2. Build produksi lolos. Backend tidak disentuh.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

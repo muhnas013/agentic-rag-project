@@ -42,6 +42,14 @@ const CONTOH = [
   },
 ]
 
+/**
+ * Tinggi terbesar kolom pertanyaan sebelum ia mulai bergulir sendiri.
+ * Angkanya harus sama dengan kelas `max-h-44` pada elemennya: yang satu
+ * mengatur tinggi lewat JavaScript, yang lain menjadi batas keras bila
+ * perhitungan itu meleset.
+ */
+const TINGGI_MAKS = 176
+
 export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }) {
   const [pesan, setPesan] = useState([])
   const [masukan, setMasukan] = useState('')
@@ -71,6 +79,21 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
   useEffect(() => {
     ujungRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [pesan, menunggu])
+
+  // Tinggi kolom pertanyaan mengikuti isinya.
+  //
+  // Dikerjakan di sini, bukan di dalam `onChange`, supaya semua jalur yang
+  // mengubah isinya ikut tertangani — termasuk yang tidak lewat ketikan:
+  // mengosongkan kolom setelah kirim, dan mengisinya dari panel dokumen
+  // maupun setelah unggahan.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    // Dinolkan lebih dulu; tanpa itu `scrollHeight` tidak pernah mengecil
+    // dan kolomnya hanya bisa membesar, tidak bisa menyusut kembali.
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, TINGGI_MAKS)}px`
+  }, [masukan])
 
   // Dipakai panel dokumen untuk menyiapkan awal pertanyaan, dengan alasan
   // yang sama seperti setelah unggahan: menyebut nama berkas secara eksplisit
@@ -231,7 +254,7 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
           {/* Cincin fokus dipasang pada pembungkusnya, bukan pada kolom teks
               sendiri, supaya tombol lampiran dan kirim terbaca sebagai satu
               kendali bersama kolomnya. */}
-          <div className="flex items-center gap-2 rounded-2xl border border-slate-300 bg-white p-1.5 shadow-sm transition focus-within:border-merek-400 focus-within:ring-4 focus-within:ring-merek-100">
+          <div className="flex items-end gap-2 rounded-2xl border border-slate-300 bg-white p-1.5 shadow-sm transition focus-within:border-merek-400 focus-within:ring-4 focus-within:ring-merek-100">
             {/* READ_ONLY tidak berwenang mengunggah; tombolnya disembunyikan
                 supaya tidak menawarkan aksi yang pasti ditolak 403. */}
             {peran !== 'READ_ONLY' && (
@@ -241,13 +264,26 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
                 onGagal={(msg) => tambah({ role: 'system', content: msg, error: true })}
               />
             )}
-            <input
+            <textarea
               ref={inputRef}
+              rows={1}
               value={masukan}
               onChange={(e) => setMasukan(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter mengirim, Shift+Enter menambah baris.
+                //
+                // `isComposing` diperiksa karena papan ketik yang memakai
+                // penyusunan aksara — IME — juga memakai Enter untuk memilih
+                // kandidat. Tanpa pemeriksaan ini, pertanyaan akan terkirim
+                // separuh jadi tepat saat penggunanya sedang mengetik.
+                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault()
+                  kirim(masukan)
+                }
+              }}
               placeholder="Tulis pertanyaan…"
               disabled={menunggu}
-              className="h-9 min-w-0 flex-1 bg-transparent px-2 text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
+              className="scroll-halus max-h-44 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
             />
             <button
               type="submit"
@@ -259,9 +295,23 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
               <span aria-hidden>↑</span>
             </button>
           </div>
-          <p className="mt-2 text-center text-[11px] text-slate-400">
-            Jawaban disusun model lokal dari dokumen Anda — periksa kembali
-            angka dan tanggal sebelum dipakai.
+          <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-center text-[11px] text-slate-400">
+            <span>
+              <kbd className="rounded border border-slate-200 bg-slate-50 px-1 font-sans text-[10px] text-slate-500">
+                Enter
+              </kbd>{' '}
+              mengirim,{' '}
+              <kbd className="rounded border border-slate-200 bg-slate-50 px-1 font-sans text-[10px] text-slate-500">
+                Shift+Enter
+              </kbd>{' '}
+              baris baru
+            </span>
+            <span aria-hidden className="hidden sm:inline">
+              ·
+            </span>
+            <span>
+              Jawaban disusun model lokal — periksa kembali angka dan tanggal.
+            </span>
           </p>
         </div>
       </form>

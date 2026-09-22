@@ -135,6 +135,38 @@ Bila test lulus semua dan matriks memberi 6/7 atau lebih, sistem siap dipakai.
 
 ---
 
+## Menyalakan kembali setelah mesin dihidupkan
+
+Tidak ada satu pun layanan di sini yang menyala sendiri saat boot:
+`docker.service` berstatus *disabled* (walau `docker.socket` aktif, sehingga
+daemon-nya bangun begitu perintah `docker` pertama dijalankan), dan Ollama
+tidak punya unit systemd sama sekali.
+
+```bash
+./jalankan.sh              # semuanya
+./jalankan.sh --tanpa-ui   # tanpa frontend
+```
+
+Skrip itu aman dijalankan berulang — layanan yang sudah hidup dilewati — dan
+kembali ke prompt setelah selesai; ketiga layanan berjalan lepas dengan log
+di `logs/`.
+
+**Urutannya tidak boleh dibalik, dan inilah sebabnya skrip ini ada.** Ollama
+diikat ke `172.28.0.1`, yang bukan alamat mesin ini melainkan gateway jaringan
+Compose — alamat itu baru ada setelah `docker compose up`. Menyalakan Ollama
+lebih dulu membuatnya gagal bind dengan "cannot assign requested address",
+dan pesan itu tidak menyebut sebabnya sama sekali.
+
+Menghentikan:
+
+```bash
+docker compose down
+pkill -x ollama
+pkill -f 'node .*vite'
+```
+
+---
+
 ## Perintah harian
 
 ```bash

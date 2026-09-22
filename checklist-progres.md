@@ -1555,6 +1555,48 @@ paling mudah membuat test lulus atas hal yang tidak pernah terjadi.
 
 Jumlah test: 170 -> 179, semuanya lulus. Peringatan lint tetap 2.
 
+### Skrip menyalakan layanan · selesai (22 Sep 2026)
+
+Diminta pengguna setelah bertanya bagaimana menyalakan semuanya ketika
+laptop baru dihidupkan. Pemeriksaan lebih dulu menemukan **tidak ada satu
+pun yang otomatis**: `docker.service` *disabled* (hanya `docker.socket`
+yang aktif, sehingga daemon bangun saat perintah `docker` pertama),
+container berpolicy `unless-stopped`, dan Ollama **tidak punya unit systemd
+sama sekali** — ia hidup hanya karena dinyalakan manual.
+
+Dibuat `jalankan.sh`: Compose → Ollama → tunggu backend sehat → frontend.
+Aman diulang, setelan dibaca dari `.env` (bukan disalin ke skrip), dan
+keluar dengan kode 0.
+
+**Urutannya bukan selera, dan itulah alasan skrip ini ada.** Ollama diikat
+ke `172.28.0.1` — bukan alamat mesin ini, melainkan gateway jaringan
+Compose, yang hidup di interface `br-*` dan baru ada setelah container naik.
+Dibuktikan saat pengujian: setelah `docker compose down`, alamat itu hilang
+dari `ip addr`. Menyalakan Ollama lebih dulu gagal dengan "cannot assign
+requested address", dan pesan itu tidak menyebut sebabnya sama sekali.
+Skripnya menunggu alamat itu muncul sebelum menjalankan Ollama.
+
+**Dua bug ditemukan karena mengujinya dari keadaan benar-benar mati.**
+Menjalankannya saat semua sudah hidup lolos mulus — dan tidak membuktikan
+apa pun, karena setiap langkah mengambil cabang "sudah berjalan":
+
+1. **Skrip menggantung selamanya.** `nohup … & disown` terlihat benar
+   tetapi tidak cukup: `npm run dev` tetap menjadi anak skrip, dan skripnya
+   menunggu proses itu selesai. Terukur menggantung 8 menit 45 detik sampai
+   dihentikan paksa. Diganti `setsid` dengan stdin dari `/dev/null`.
+2. **`setsid VAR=nilai program` tidak sah.** setsid menjalankan program,
+   bukan menafsirkan penetapan variabel di depan nama program seperti yang
+   dilakukan shell. Diperbaiki dengan `env`.
+
+**Diuji dari keadaan kosong** (container dimatikan, Ollama dimatikan,
+frontend dimatikan, gateway hilang): selesai **13 detik, kode keluar 0**.
+Sesudahnya ketiga layanan menyahut, Ollama berinduk pada PID 1256 —
+sesi systemd, bukan skrip — jadi benar-benar lepas, dan `POST /chat`
+menjawab "Tokyo" untuk pertanyaan ibu kota Jepang. Opsi `--tanpa-ui` juga
+diuji.
+
+Log layanan ditaruh di `logs/` dan diabaikan Git.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

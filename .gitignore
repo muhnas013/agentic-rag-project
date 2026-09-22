@@ -25,6 +25,9 @@ storage/processed/*
 !storage/uploads/.gitkeep
 !storage/processed/.gitkeep
 
+# Log layanan dari jalankan.sh
+logs/
+
 # OCR / model cache
 .paddleocr/
 *.onnx

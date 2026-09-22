@@ -131,6 +131,19 @@ bawaan untuk semua orang.
 > docker compose exec -w /app backend python -m backend.reindex --jalan  # kerjakan
 > ```
 
+## Menyalakan setelah mesin dihidupkan
+
+Tidak ada layanan yang menyala sendiri saat boot. Satu perintah untuk
+semuanya — aman diulang, layanan yang sudah hidup dilewati:
+
+```bash
+./jalankan.sh
+```
+
+Urutannya penting dan itulah sebab skrip ini ada: Ollama diikat ke gateway
+jaringan Docker Compose, yang baru ada setelah container naik. Rinciannya di
+`docs/menjalankan.md`.
+
 ## Pengujian
 
 ```bash

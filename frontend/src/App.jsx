@@ -33,7 +33,7 @@ function IndikatorStatus() {
 
   if (galat) {
     return (
-      <span className={`${dasar} border-rose-200 bg-rose-50 text-rose-700`}>
+      <span className={`${dasar} border-rose-900/60 bg-rose-950/40 text-rose-300`}>
         <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
         Backend terputus
       </span>
@@ -42,8 +42,8 @@ function IndikatorStatus() {
 
   if (!status) {
     return (
-      <span className={`${dasar} border-slate-200 bg-slate-50 text-slate-400`}>
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-slate-300" />
+      <span className={`${dasar} border-garis bg-naik text-redup`}>
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-garis2" />
         Memeriksa…
       </span>
     )
@@ -54,8 +54,8 @@ function IndikatorStatus() {
     <span
       className={`${dasar} ${
         sehat
-          ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-          : 'border-amber-200 bg-amber-50 text-amber-800'
+          ? 'border-emerald-900/60 bg-emerald-950/40 text-emerald-300'
+          : 'border-amber-900/60 bg-amber-950/40 text-amber-300'
       }`}
       title={`LLM ${status.llm_model} · embedding ${status.embedding_model} (${status.embedding_dim} dimensi)`}
     >
@@ -142,8 +142,8 @@ export default function App() {
 
   if (memeriksa) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 bg-slate-50 text-sm text-slate-400">
-        <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-merek-500" />
+      <div className="flex h-full flex-col items-center justify-center gap-3 bg-dasar text-sm text-redup">
+        <span className="h-5 w-5 animate-spin rounded-full border-2 border-garis border-t-sedang" />
         Memeriksa sesi…
       </div>
     )
@@ -152,10 +152,10 @@ export default function App() {
   if (!akun) return <LoginForm onBerhasil={setAkun} />
 
   return (
-    <div className="flex h-full flex-col bg-slate-50">
-      <header className="z-20 flex h-14 shrink-0 items-center border-b border-slate-200 bg-white/85 backdrop-blur">
+    <div className="flex h-full flex-col bg-dasar">
+      <header className="z-20 flex h-14 shrink-0 items-center border-b border-garis bg-panel">
         {/* Selebar sidebar, sehingga garis pemisahnya menyambung ke bawah. */}
-        <div className="hidden h-full w-64 shrink-0 items-center border-r border-slate-200 px-4 sm:flex">
+        <div className="hidden h-full w-64 shrink-0 items-center border-r border-garis px-4 sm:flex">
           <Merek />
         </div>
 
@@ -169,17 +169,17 @@ export default function App() {
 
             <button
               onClick={() => setDokumenTerbuka(true)}
-              className="flex items-center gap-1.5 rounded-full border border-slate-200 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:border-merek-200 hover:bg-merek-50 hover:text-merek-700"
+              className="flex items-center gap-1.5 rounded-full border border-garis px-2.5 py-1 text-xs font-medium text-sedang transition hover:border-garis2 hover:bg-naik hover:text-terang"
             >
               <span aria-hidden>🗂</span>
               <span className="hidden sm:inline">Dokumen</span>
             </button>
 
-            <div className="hidden items-center gap-2 border-l border-slate-200 pl-3 sm:flex">
-              <span className="text-xs font-medium text-slate-600">
+            <div className="hidden items-center gap-2 border-l border-garis pl-3 sm:flex">
+              <span className="text-xs font-medium text-sedang">
                 {akun.username}
               </span>
-              <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-500">
+              <span className="rounded-full bg-naik px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-redup">
                 {akun.role}
               </span>
             </div>
@@ -187,7 +187,7 @@ export default function App() {
             <button
               onClick={keluar}
               title="Keluar"
-              className="rounded-full border border-transparent px-2.5 py-1 text-xs text-slate-500 transition hover:border-slate-200 hover:bg-slate-50 hover:text-slate-800"
+              className="rounded-full border border-transparent px-2.5 py-1 text-xs text-redup transition hover:border-garis hover:bg-naik hover:text-terang"
             >
               Keluar
             </button>

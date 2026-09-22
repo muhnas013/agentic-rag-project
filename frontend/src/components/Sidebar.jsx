@@ -64,11 +64,11 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
   }
 
   return (
-    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside className="flex h-full w-64 shrink-0 flex-col border-r border-garis bg-panel">
       <div className="p-3">
         <button
           onClick={onBaru}
-          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl bg-merek-600 text-sm font-medium text-white shadow-sm transition hover:bg-merek-700"
+          className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-garis bg-naik text-sm font-medium text-terang transition hover:border-garis2 hover:bg-naik2"
         >
           <span aria-hidden className="text-base leading-none">+</span>
           Percakapan baru
@@ -80,15 +80,15 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
           <div className="space-y-2 px-2 pt-2">
             {[0, 1, 2].map((i) => (
               <div key={i} className="animate-pulse space-y-1.5">
-                <div className="h-3 w-4/5 rounded bg-slate-100" />
-                <div className="h-2 w-2/5 rounded bg-slate-100" />
+                <div className="h-3 w-4/5 rounded bg-naik" />
+                <div className="h-2 w-2/5 rounded bg-naik" />
               </div>
             ))}
           </div>
         )}
-        {galat && <p className="px-2 text-xs text-rose-600">{galat}</p>}
+        {galat && <p className="px-2 text-xs text-rose-400">{galat}</p>}
         {!memuat && !galat && sesi.length === 0 && (
-          <p className="px-2 pt-4 text-center text-xs leading-relaxed text-slate-400">
+          <p className="px-2 pt-4 text-center text-xs leading-relaxed text-redup">
             Belum ada percakapan.
             <br />
             Pertanyaan pertama Anda akan muncul di sini.
@@ -97,7 +97,7 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
 
         {kelompokkan(sesi).map(([label, daftar]) => (
           <div key={label} className="mb-3">
-            <p className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+            <p className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-redup">
               {label}
             </p>
             <ul className="space-y-0.5">
@@ -117,15 +117,15 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
                         'group relative flex cursor-pointer items-start gap-1.5 rounded-lg py-2 pl-3 pr-2 text-left text-sm transition',
                         'before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-r-full before:transition',
                         aktif
-                          ? 'bg-merek-50 text-merek-900 before:bg-merek-600'
-                          : 'text-slate-600 before:bg-transparent hover:bg-slate-50',
+                          ? 'bg-naik text-terang before:bg-terang'
+                          : 'text-sedang before:bg-transparent hover:bg-naik/60',
                       ].join(' ')}
                     >
                       <div className="min-w-0 flex-1">
                         <p className={`truncate ${aktif ? 'font-medium' : ''}`}>
                           {s.judul}
                         </p>
-                        <p className="mt-0.5 text-[11px] text-slate-400">
+                        <p className="mt-0.5 text-[11px] text-redup">
                           {jam(s.terakhir)} · {s.jumlah_pesan} pesan
                         </p>
                       </div>
@@ -134,7 +134,7 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
                           onClick={(e) => hapus(e, s.session_id)}
                           title="Hapus percakapan"
                           aria-label={`Hapus percakapan ${s.judul}`}
-                          className="shrink-0 rounded px-1 text-slate-300 opacity-0 transition hover:text-rose-600 focus:opacity-100 group-hover:opacity-100"
+                          className="shrink-0 rounded px-1 text-redup opacity-0 transition hover:text-rose-400 focus:opacity-100 group-hover:opacity-100"
                         >
                           ×
                         </button>

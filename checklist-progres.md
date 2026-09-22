@@ -1407,6 +1407,55 @@ sungguhan lewat tombol Enter. Tidak ada galat konsol.
 
 Peringatan lint tetap 2. Build produksi lolos. Backend tidak disentuh.
 
+### Tampilan diubah menyerupai Grok · selesai (22 Sep 2026)
+
+Diminta pengguna. Tiga hal yang membuat Grok terlihat seperti Grok, dan
+ketiganya dikerjakan — bukan sekadar menggelapkan warna:
+
+1. **Tema gelap hampir hitam dengan beda antarlapis yang sangat tipis.**
+   Latar `#0a0a0b`, panel `#101012`, kartu `#17171a`. Pada tema segelap ini
+   satu nilai yang meleset langsung terlihat sebagai tambalan, jadi seluruh
+   warna ditarik dari token di `index.css` — tidak ada satu pun kelas
+   `slate-*` tersisa di `src/`. Ditambah `color-scheme: dark` supaya kendali
+   bawaan peramban (scrollbar, isian otomatis) ikut gelap dan tidak muncul
+   sebagai kotak putih menyilaukan.
+
+2. **Kolom pertanyaan pindah ke tengah layar saat percakapan kosong,**
+   lalu turun ke dasar begitu ada pesan pertama. Karena dipakai di dua
+   posisi, `KolomPertanyaan` dipisah menjadi komponen tersendiri — satu
+   salinan perilaku, dua tempat pemakaian. Saran pertanyaan berubah dari
+   tiga kartu menjadi pil bulat di bawah kolom.
+
+3. **Jawaban asisten tidak lagi diberi gelembung** — hanya teks polos di
+   atas latar. Hanya pertanyaan pengguna yang berlatar, rata kanan. Jawaban
+   biasanya jauh lebih panjang daripada pertanyaannya, dan membungkusnya
+   dalam kotak membuat blok teks panjang terasa sesak; pertanyaan yang
+   pendek justru terbantu latar itu untuk menandai giliran siapa.
+
+Susunan kolom pertanyaan juga diubah: teks di atas, tombol di bawahnya —
+bukan satu baris bersama. Pada pertanyaan panjang, susunan satu baris
+menyisakan kolom teks sempit yang terjepit di antara dua tombol. Tombol
+kirim jadi lingkaran putih kecil, seperti Grok.
+
+**Diuji di browser** pada 1280px dan 420px: layar masuk, percakapan kosong,
+percakapan berisi, panel dokumen, dan layar sempit. Penyajian lencana tool,
+Markdown, dan blok sumber diuji dengan balasan tiruan — dan kali ini
+pemeriksaan "blok sumber terbuka" diperbaiki: pemeriksaan sebelumnya
+menghitung elemen yang masih tersembunyi, sehingga akan lulus walau
+daftarnya tidak pernah terbuka. Sekarang yang diperiksa atribut `open`
+dan keterlihatan barisnya.
+
+Tidak ada galat konsol, tidak ada gulir mendatar di layar sempit.
+Peringatan lint tetap 2. Build produksi lolos (CSS 32,4 kB → 6,9 kB gzip,
+turun dari 36,5 kB karena kelas warna jadi jauh lebih sedikit).
+
+**Tema terang dihapus, bukan dijadikan pilihan.** Bila kelak diinginkan
+sakelar terang/gelap, tokennya sudah terpusat sehingga tinggal menambah
+satu blok nilai — tetapi selama belum diminta, dua tema berarti dua
+tampilan yang harus sama-sama dirawat dan diuji.
+
+Backend tidak disentuh; 170 test tetap lulus.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

@@ -5,10 +5,11 @@
  * Agent, dan menampilkan tool yang dipakai beserta potongan dokumen
  * sumbernya.
  *
- * Lebar bacaan dibatasi di dalam sini, bukan oleh induknya: daerah gulir
- * dan bilah masukan sama-sama membentang penuh, dan hanya isinya yang
- * dipusatkan. Membatasi induknya membuat bilah masukan tampak sebagai
- * pulau terpisah dengan celah di kiri dan kanannya.
+ * Susunannya mengikuti gaya Grok: selama percakapan masih kosong, kolom
+ * pertanyaan berada di tengah layar bersama sapaan dan saran; begitu ada
+ * pesan pertama, kolom yang sama turun menempel ke dasar. Karena itu
+ * `KolomPertanyaan` dipisah menjadi komponen tersendiri — dipakai di dua
+ * tempat, tetapi hanya ada satu salinan perilakunya.
  */
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ambilRiwayat, kirimPesan } from '../services/api'
@@ -27,28 +28,114 @@ import UploadButton from './UploadButton'
 const CONTOH = [
   {
     ikon: '📄',
-    tool: 'RAG_Search',
+    label: 'Cari di dokumen',
     teks: 'Menurut dokumen kebijakan, berapa lama masa retensi dokumen kepegawaian?',
   },
   {
     ikon: '🗄',
-    tool: 'SQL_Query',
+    label: 'Tanya database',
     teks: 'Ada berapa pegawai di bagian Keuangan?',
   },
   {
     ikon: '🖼',
-    tool: 'Image_OCR',
+    label: 'Baca gambar',
     teks: 'Berapa total transaksi pada struk-uji.png?',
   },
 ]
 
 /**
  * Tinggi terbesar kolom pertanyaan sebelum ia mulai bergulir sendiri.
- * Angkanya harus sama dengan kelas `max-h-44` pada elemennya: yang satu
+ * Angkanya harus sama dengan kelas `max-h-52` pada elemennya: yang satu
  * mengatur tinggi lewat JavaScript, yang lain menjadi batas keras bila
  * perhitungan itu meleset.
  */
-const TINGGI_MAKS = 176
+const TINGGI_MAKS = 208
+
+function KolomPertanyaan({
+  inputRef,
+  nilai,
+  onUbah,
+  onKirim,
+  menunggu,
+  peran,
+  onUnggahSelesai,
+  onUnggahGagal,
+}) {
+  // Tinggi kolom mengikuti isinya.
+  //
+  // Dikerjakan lewat efek, bukan di dalam `onChange`, supaya semua jalur
+  // yang mengubah isinya ikut tertangani — termasuk yang tidak lewat
+  // ketikan: mengosongkan kolom setelah kirim, dan mengisinya dari panel
+  // dokumen maupun setelah unggahan.
+  useEffect(() => {
+    const el = inputRef.current
+    if (!el) return
+    // Dinolkan lebih dulu; tanpa itu `scrollHeight` tidak pernah mengecil
+    // dan kolomnya hanya bisa membesar, tidak bisa menyusut kembali.
+    el.style.height = 'auto'
+    el.style.height = `${Math.min(el.scrollHeight, TINGGI_MAKS)}px`
+  }, [nilai, inputRef])
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        onKirim(nilai)
+      }}
+    >
+      {/* Kolom teks di atas, deretan tombol di bawahnya — bukan satu baris
+          bersama. Pada pertanyaan panjang, susunan satu baris menyisakan
+          kolom teks yang sempit terjepit di antara dua tombol. */}
+      <div className="rounded-3xl border border-garis bg-naik p-2.5 shadow-lg shadow-black/20 transition focus-within:border-garis2">
+        <textarea
+          ref={inputRef}
+          rows={1}
+          value={nilai}
+          onChange={(e) => onUbah(e.target.value)}
+          onKeyDown={(e) => {
+            // Enter mengirim, Shift+Enter menambah baris.
+            //
+            // `isComposing` diperiksa karena papan ketik yang memakai
+            // penyusunan aksara — IME — juga memakai Enter untuk memilih
+            // kandidat. Tanpa pemeriksaan ini, pertanyaan akan terkirim
+            // separuh jadi tepat saat penggunanya sedang mengetik.
+            if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+              e.preventDefault()
+              onKirim(nilai)
+            }
+          }}
+          placeholder="Tanyakan apa saja…"
+          disabled={menunggu}
+          className="scroll-halus block max-h-52 w-full resize-none bg-transparent px-2 py-1.5 text-[15px] leading-6 text-terang outline-none placeholder:text-redup disabled:opacity-60"
+        />
+
+        <div className="mt-1 flex items-center justify-between gap-2">
+          {/* READ_ONLY tidak berwenang mengunggah; tombolnya disembunyikan
+              supaya tidak menawarkan aksi yang pasti ditolak 403. */}
+          <div className="flex items-center gap-1">
+            {peran !== 'READ_ONLY' && (
+              <UploadButton
+                nonaktif={menunggu}
+                onSelesai={onUnggahSelesai}
+                onGagal={onUnggahGagal}
+              />
+            )}
+          </div>
+
+          <button
+            type="submit"
+            disabled={menunggu || !nilai.trim()}
+            title="Kirim"
+            aria-label="Kirim"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-terang text-base font-semibold text-dasar transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-naik2 disabled:text-redup"
+          >
+            <span aria-hidden>↑</span>
+          </button>
+        </div>
+      </div>
+    </form>
+  )
+}
 
 export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }) {
   const [pesan, setPesan] = useState([])
@@ -79,21 +166,6 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
   useEffect(() => {
     ujungRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [pesan, menunggu])
-
-  // Tinggi kolom pertanyaan mengikuti isinya.
-  //
-  // Dikerjakan di sini, bukan di dalam `onChange`, supaya semua jalur yang
-  // mengubah isinya ikut tertangani — termasuk yang tidak lewat ketikan:
-  // mengosongkan kolom setelah kirim, dan mengisinya dari panel dokumen
-  // maupun setelah unggahan.
-  useEffect(() => {
-    const el = inputRef.current
-    if (!el) return
-    // Dinolkan lebih dulu; tanpa itu `scrollHeight` tidak pernah mengecil
-    // dan kolomnya hanya bisa membesar, tidak bisa menyusut kembali.
-    el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, TINGGI_MAKS)}px`
-  }, [masukan])
 
   // Dipakai panel dokumen untuk menyiapkan awal pertanyaan, dengan alasan
   // yang sama seperti setelah unggahan: menyebut nama berkas secara eksplisit
@@ -158,48 +230,68 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
     onUnggah?.()
   }
 
+  const kolom = (
+    <KolomPertanyaan
+      inputRef={inputRef}
+      nilai={masukan}
+      onUbah={setMasukan}
+      onKirim={kirim}
+      menunggu={menunggu}
+      peran={peran}
+      onUnggahSelesai={tanganiUnggahan}
+      onUnggahGagal={(msg) => tambah({ role: 'system', content: msg, error: true })}
+    />
+  )
+
+  const kosong = !memuatRiwayat && pesan.length === 0
+
+  // Percakapan kosong: sapaan, kolom pertanyaan, lalu saran — semuanya di
+  // tengah layar. Tidak ada daerah gulir dan tidak ada bilah bawah, jadi
+  // tidak ada ruang kosong menganga di antara keduanya.
+  if (kosong) {
+    return (
+      <div className="flex h-full min-h-0 flex-col items-center justify-center px-4 pb-10">
+        <div className="w-full max-w-2xl">
+          <div className="mb-7 flex flex-col items-center text-center">
+            <Lambang ukuran="besar" />
+            <h2 className="mt-5 text-[28px] font-semibold tracking-tight text-terang">
+              Ada yang ingin Anda tanyakan?
+            </h2>
+            <p className="mt-2 text-sm text-redup">
+              Mencari di dokumen, membaca gambar, atau mengambil data dari
+              database — Agent memilih sendiri caranya.
+            </p>
+          </div>
+
+          {kolom}
+
+          <div className="mt-4 flex flex-wrap justify-center gap-2">
+            {CONTOH.map((contoh) => (
+              <button
+                key={contoh.teks}
+                onClick={() => kirim(contoh.teks)}
+                title={contoh.teks}
+                className="flex items-center gap-2 rounded-full border border-garis bg-panel px-3.5 py-2 text-[13px] text-sedang transition hover:border-garis2 hover:bg-naik hover:text-terang"
+              >
+                <span aria-hidden className="text-sm leading-none">
+                  {contoh.ikon}
+                </span>
+                {contoh.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="scroll-halus flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-3xl space-y-5 px-4 py-6 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
           {memuatRiwayat && (
             <div className="flex justify-center pt-10">
-              <span className="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-merek-500" />
-            </div>
-          )}
-
-          {!memuatRiwayat && pesan.length === 0 && (
-            <div className="flex min-h-[calc(100vh-16rem)] flex-col items-center justify-center text-center">
-              <Lambang ukuran="besar" />
-              <h2 className="mt-5 text-xl font-semibold tracking-tight text-slate-800">
-                Tanyakan apa saja tentang dokumen dan data Anda
-              </h2>
-              <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500">
-                Agent memilih sendiri caranya: mencari di dokumen, membaca
-                gambar, atau mengambil data dari database.
-              </p>
-
-              <div className="mt-7 grid w-full max-w-xl gap-2.5 sm:grid-cols-3">
-                {CONTOH.map((contoh) => (
-                  <button
-                    key={contoh.teks}
-                    onClick={() => kirim(contoh.teks)}
-                    className="group flex h-full flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-merek-200 hover:shadow-md"
-                  >
-                    <span className="flex items-center gap-1.5">
-                      <span aria-hidden className="text-base leading-none">
-                        {contoh.ikon}
-                      </span>
-                      <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 transition group-hover:text-merek-600">
-                        {contoh.tool}
-                      </span>
-                    </span>
-                    <span className="text-[13px] leading-snug text-slate-600 transition group-hover:text-slate-900">
-                      {contoh.teks}
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-garis border-t-sedang" />
             </div>
           )}
 
@@ -207,7 +299,7 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
             m.role === 'system' && !m.error ? (
               <p
                 key={m.id}
-                className="animate-muncul mx-auto flex w-fit max-w-xl items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3.5 py-1.5 text-xs text-emerald-800"
+                className="animate-muncul mx-auto flex w-fit max-w-xl items-center gap-2 rounded-full border border-garis bg-naik px-3.5 py-1.5 text-xs text-sedang"
               >
                 <span aria-hidden>✓</span>
                 {m.content}
@@ -218,20 +310,17 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
           )}
 
           {menunggu && (
-            <div className="animate-muncul flex items-start gap-2.5">
-              <Lambang />
-              <div className="flex items-center gap-2 rounded-2xl rounded-tl-md border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500 shadow-sm">
-                <span className="flex gap-1">
-                  {[0, 150, 300].map((jeda) => (
-                    <span
-                      key={jeda}
-                      style={{ animationDelay: `${jeda}ms` }}
-                      className="h-1.5 w-1.5 animate-bounce rounded-full bg-merek-500/70"
-                    />
-                  ))}
-                </span>
-                Agent sedang bekerja…
-              </div>
+            <div className="animate-muncul flex items-center gap-2.5 text-sm text-redup">
+              <span className="flex gap-1">
+                {[0, 150, 300].map((jeda) => (
+                  <span
+                    key={jeda}
+                    style={{ animationDelay: `${jeda}ms` }}
+                    className="h-1.5 w-1.5 animate-bounce rounded-full bg-sedang"
+                  />
+                ))}
+              </span>
+              Agent sedang bekerja…
             </div>
           )}
 
@@ -239,82 +328,25 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
         </div>
       </div>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault()
-          kirim(masukan)
-        }}
-        className="shrink-0 border-t border-slate-200 bg-white/85 py-3 backdrop-blur"
-      >
-        {/* Padding mendatarnya sengaja sama persis dengan daerah pesan di
-            atas, sehingga tepi kotak masukan segaris dengan tepi gelembung
-            percakapan. Bila berbeda sedikit saja, keduanya terbaca sebagai
-            dua kolom yang tidak berhubungan. */}
-        <div className="mx-auto w-full max-w-3xl px-4 sm:px-6">
-          {/* Cincin fokus dipasang pada pembungkusnya, bukan pada kolom teks
-              sendiri, supaya tombol lampiran dan kirim terbaca sebagai satu
-              kendali bersama kolomnya. */}
-          <div className="flex items-end gap-2 rounded-2xl border border-slate-300 bg-white p-1.5 shadow-sm transition focus-within:border-merek-400 focus-within:ring-4 focus-within:ring-merek-100">
-            {/* READ_ONLY tidak berwenang mengunggah; tombolnya disembunyikan
-                supaya tidak menawarkan aksi yang pasti ditolak 403. */}
-            {peran !== 'READ_ONLY' && (
-              <UploadButton
-                nonaktif={menunggu}
-                onSelesai={tanganiUnggahan}
-                onGagal={(msg) => tambah({ role: 'system', content: msg, error: true })}
-              />
-            )}
-            <textarea
-              ref={inputRef}
-              rows={1}
-              value={masukan}
-              onChange={(e) => setMasukan(e.target.value)}
-              onKeyDown={(e) => {
-                // Enter mengirim, Shift+Enter menambah baris.
-                //
-                // `isComposing` diperiksa karena papan ketik yang memakai
-                // penyusunan aksara — IME — juga memakai Enter untuk memilih
-                // kandidat. Tanpa pemeriksaan ini, pertanyaan akan terkirim
-                // separuh jadi tepat saat penggunanya sedang mengetik.
-                if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-                  e.preventDefault()
-                  kirim(masukan)
-                }
-              }}
-              placeholder="Tulis pertanyaan…"
-              disabled={menunggu}
-              className="scroll-halus max-h-44 min-w-0 flex-1 resize-none bg-transparent px-2 py-2 text-sm leading-5 text-slate-800 outline-none placeholder:text-slate-400 disabled:opacity-60"
-            />
-            <button
-              type="submit"
-              disabled={menunggu || !masukan.trim()}
-              title="Kirim"
-              className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl bg-merek-600 px-3.5 text-sm font-medium text-white shadow-sm transition hover:bg-merek-700 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none"
-            >
-              <span className="hidden sm:inline">Kirim</span>
-              <span aria-hidden>↑</span>
-            </button>
-          </div>
-          <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-0.5 text-center text-[11px] text-slate-400">
-            <span>
-              <kbd className="rounded border border-slate-200 bg-slate-50 px-1 font-sans text-[10px] text-slate-500">
-                Enter
-              </kbd>{' '}
-              mengirim,{' '}
-              <kbd className="rounded border border-slate-200 bg-slate-50 px-1 font-sans text-[10px] text-slate-500">
-                Shift+Enter
-              </kbd>{' '}
-              baris baru
-            </span>
-            <span aria-hidden className="hidden sm:inline">
-              ·
-            </span>
-            <span>
-              Jawaban disusun model lokal — periksa kembali angka dan tanggal.
-            </span>
+      {/* Bilah bawah tidak diberi garis pemisah maupun latar sendiri:
+          kolomnya sudah punya batas sendiri, dan menumpuk keduanya membuat
+          dasar layar terasa berat. */}
+      <div className="shrink-0 px-4 pb-3 sm:px-6">
+        <div className="mx-auto w-full max-w-3xl">
+          {kolom}
+          <p className="mt-2 text-center text-[11px] text-redup">
+            <kbd className="rounded border border-garis bg-naik px-1 font-sans text-[10px]">
+              Enter
+            </kbd>{' '}
+            mengirim,{' '}
+            <kbd className="rounded border border-garis bg-naik px-1 font-sans text-[10px]">
+              Shift+Enter
+            </kbd>{' '}
+            baris baru · Jawaban disusun model lokal — periksa kembali angka
+            dan tanggal.
           </p>
         </div>
-      </form>
+      </div>
     </div>
   )
 }

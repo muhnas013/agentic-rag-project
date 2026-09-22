@@ -49,7 +49,7 @@ export default function UploadButton({ onSelesai, onGagal, nonaktif }) {
         disabled={nonaktif || sibuk}
         title="Unggah dokumen atau gambar"
         aria-label="Unggah dokumen atau gambar"
-        className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+        className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl text-redup transition hover:bg-naik2 hover:text-terang disabled:cursor-not-allowed disabled:opacity-50"
       >
         {sibuk ? (
           <>
@@ -58,10 +58,10 @@ export default function UploadButton({ onSelesai, onGagal, nonaktif }) {
                 bahwa prosesnya masih hidup. */}
             <span
               aria-hidden
-              className="absolute inset-x-0 bottom-0 bg-merek-100 transition-[height] duration-200"
+              className="absolute inset-x-0 bottom-0 bg-naik2 transition-[height] duration-200"
               style={{ height: `${progres}%` }}
             />
-            <span className="relative text-[10px] font-semibold tabular-nums text-merek-700">
+            <span className="relative text-[10px] font-semibold tabular-nums text-terang">
               {progres}%
             </span>
           </>

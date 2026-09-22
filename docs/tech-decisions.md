@@ -117,6 +117,10 @@ bukan hanya validasi di kode.
 
 ### D-06 — Provider LLM dan embedding dapat ditukar lewat `.env`
 
+> **Sebagian dibatalkan oleh D-17.** Provider OpenAI-compatible sudah dihapus;
+> yang tersisa hanya Ollama dan `hash_stub`. Catatan di bawah dipertahankan
+> karena menjelaskan mengapa lapisan itu pernah ada.
+
 **Masalah.** PRD §4.2 menetapkan Ollama sebagai penyedia LLM dan embedding,
 tetapi pengunduhan model lokal (4,7 GB + 274 MB) ditunda sampai Fase 3.
 Menunggu unduhan selesai akan menghentikan seluruh pengerjaan Fase 2.
@@ -218,7 +222,8 @@ PRD §4.2. Versi yang terpasang (1.4.2) memakai API baru berbasis LangGraph,
 bukan `AgentExecutor` lama yang banyak beredar di contoh lama.
 
 **Konsekuensi yang disengaja.** `llm_service.py` ditulis ulang: klien HTTP
-buatan sendiri diganti model LangChain (`ChatOpenAI` dan `ChatOllama`).
+buatan sendiri diganti model LangChain (`ChatOllama`; saat itu juga
+`ChatOpenAI`, yang kemudian dihapus pada D-17).
 Sebelumnya ada dua jalur memanggil LLM yang sama — satu lewat httpx untuk
 endpoint `/chat`, satu lagi lewat LangChain untuk Agent. Dua implementasi
 untuk satu tujuan adalah sumber masalah yang khas: setelan seperti
@@ -227,7 +232,8 @@ lain, lalu perilakunya berbeda tanpa ada yang menyadari.
 
 Lapisan provider dari keputusan D-06 tetap: `get_chat_model()` memilih
 implementasi berdasarkan `LLM_PROVIDER`, dan pemanggilnya tidak perlu tahu
-provider mana yang aktif.
+provider mana yang aktif. *(Sejak D-17 hanya tersisa satu provider, sehingga
+`get_chat_model()` tidak lagi bercabang — pintunya tetap satu.)*
 
 **`embedding_service.py` sengaja tidak ikut dipindahkan** dan tetap memakai
 httpx. Alasannya: `hash_stub` tidak punya padanan di LangChain, dan
@@ -431,3 +437,38 @@ bisa lupa memperbaruinya saat isi dokumen berubah.
 `POST /query` menerima `mode` berisi `hybrid`, `vector`, atau `fulltext`.
 Membandingkan ketiganya memperlihatkan jalur mana yang meleset saat sebuah
 jawaban keliru — dan itulah yang membongkar bug B-24.
+
+### D-17 — Provider OpenAI-compatible dihapus; hanya Ollama yang tersisa
+
+**Revisi atas keputusan D-06.** D-06 menambahkan lapisan provider agar Fase 2
+tidak perlu menunggu unduhan model lokal: LLM sementara dilayani Atria Dawn
+Preview lewat antarmuka OpenAI-compatible. Alasan itu sudah habis. Model
+lokal sudah diunduh dan dipakai sejak Fase 3, `LLM_PROVIDER=ollama` sejak
+saat itu, dan jalur OpenAI-compatible tidak pernah dipakai lagi.
+
+**Masalahnya bukan sekadar kode menganggur.** PRD §4.2 menyebut satu penyedia
+LLM: Ollama, lokal. Lapisan yang menerima `LLM_API_BASE_URL` dan
+`LLM_API_KEY` memberi jalan agar isi dokumen dan pertanyaan pengguna dikirim
+keluar mesin — hanya dengan mengubah satu baris `.env`, tanpa jejak di kode.
+Untuk sistem yang premisnya justru "semua berjalan di mesin sendiri", pintu
+itu tidak sepadan dengan keluwesan yang diberikannya.
+
+**Yang dihapus:**
+
+- `LLMProvider.OPENAI_COMPATIBLE` dan `EmbeddingProvider.OPENAI_COMPATIBLE`
+- `_build_openai_compatible()` di `llm_service.py`
+- kelas `OpenAICompatibleEmbedding` di `embedding_service.py`
+- setelan `LLM_API_BASE_URL`, `LLM_API_MODEL`, `LLM_API_KEY`,
+  `EMBEDDING_API_BASE_URL`, `EMBEDDING_API_MODEL`, `EMBEDDING_API_KEY`
+- `LLM_MAX_RETRIES` — hanya `ChatOpenAI` yang memakainya; `ChatOllama` tidak
+- dependensi `langchain-openai`
+
+**`hash_stub` tetap ada.** Ia bukan penyedia luar: embeddingnya dihitung di
+dalam proses, tanpa jaringan sama sekali, dan gunanya menjalankan test
+pipeline RAG tanpa model. Keberatan di atas tidak berlaku padanya.
+
+**Konsekuensi.** Tidak ada lagi cadangan bila Ollama mati — sistem berhenti
+menjawab sampai Ollama hidup kembali. Itu diterima: PRD memang menempatkan
+Ollama sebagai satu-satunya penyedia, dan galatnya sudah jelas menyebut
+penyebabnya. `get_chat_model()` tetap dipertahankan sebagai satu pintu
+pembuatan model (D-11), sekarang tanpa percabangan di dalamnya.

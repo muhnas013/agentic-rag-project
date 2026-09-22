@@ -1193,6 +1193,45 @@ dan mengklik percakapan lama memuat kembali seluruh isinya.
 
 Jumlah test: 152 -> 160, semuanya lulus.
 
+### Provider OpenAI-compatible dihapus · 22 Sep 2026
+
+Diminta pengguna setelah membaca diagram arsitektur: ada simpul **Compatible
+Provider** yang tidak ada padanannya di `prd.md`. Benar — PRD §4.2 menyebut
+satu penyedia LLM saja, Ollama, lokal.
+
+Lapisan itu dulu dibuat sebagai jalan pintas (D-06): Fase 2 tidak perlu
+menunggu unduhan model 4,7 GB, LLM sementara dilayani Atria Dawn Preview.
+Alasannya sudah habis sejak Fase 3 — model lokal terpasang, `LLM_PROVIDER`
+tidak pernah lagi berpindah dari `ollama`.
+
+**Yang membuatnya layak dihapus, bukan sekadar didiamkan:** setelan
+`LLM_API_BASE_URL` dan `LLM_API_KEY` membuka jalan agar isi dokumen dan
+pertanyaan pengguna dikirim ke luar mesin, cukup dengan mengubah satu baris
+`.env`. Untuk sistem yang premisnya "semua berjalan di mesin sendiri", pintu
+itu tidak sepadan.
+
+Dihapus: dua anggota enum provider, `_build_openai_compatible()`, kelas
+`OpenAICompatibleEmbedding`, enam setelan `*_API_*` di `.env`,
+`LLM_MAX_RETRIES` (hanya `ChatOpenAI` yang memakainya), dan dependensi
+`langchain-openai`. Alasan lengkap dicatat sebagai **D-17**.
+
+**`hash_stub` tetap ada.** Ia bukan penyedia luar — embeddingnya dihitung di
+dalam proses tanpa jaringan sama sekali, dan gunanya menjalankan test
+pipeline RAG tanpa model. Keberatan di atas tidak berlaku padanya.
+
+**Konsekuensi yang diterima:** tidak ada cadangan bila Ollama mati. Terbukti
+saat pengujian — Ollama memang sedang tidak berjalan di host, dan `/chat`
+membalas "All connection attempts failed". Setelah `ollama serve` dinyalakan,
+semuanya normal. Catatan itu dimasukkan ke `docs/handoff.md`.
+
+**Diuji terhadap sistem hidup** setelah perubahan: `/health` melaporkan
+`llm_provider: ollama`, `/chat` menjawab "Jakarta" untuk pertanyaan ibu kota,
+dan `/query` mengembalikan potongan `panduan-cuti.md` — jadi jalur LLM maupun
+jalur embedding keduanya masih utuh.
+
+Jumlah test: 160, semuanya lulus (tidak ada test yang menyentuh provider
+yang dihapus).
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

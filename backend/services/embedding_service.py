@@ -1,12 +1,11 @@
 """Pembuatan embedding, dengan provider yang bisa ditukar lewat .env.
 
-Tiga provider tersedia:
+Dua provider tersedia:
 
-- `ollama`            sesuai PRD §4.2, dipakai setelah model lokal diunduh.
-- `openai_compatible` layanan API mana pun yang menyediakan /v1/embeddings.
-- `hash_stub`         embedding deterministik tanpa model, KHUSUS pengembangan.
+- `ollama`    sesuai PRD §4.2, satu-satunya provider untuk pemakaian nyata.
+- `hash_stub` embedding deterministik tanpa model, KHUSUS pengembangan.
 
-Semua provider mengembalikan vektor sepanjang `EMBEDDING_DIM` dan sudah
+Keduanya mengembalikan vektor sepanjang `EMBEDDING_DIM` dan sudah
 dinormalisasi, sehingga jarak cosine pada pgvector langsung bermakna.
 """
 
@@ -81,42 +80,6 @@ class OllamaEmbedding(EmbeddingBackend):
         return [_normalise(vector) for vector in vectors]
 
 
-class OpenAICompatibleEmbedding(EmbeddingBackend):
-    """Provider API apa pun yang meniru endpoint /v1/embeddings milik OpenAI."""
-
-    name = "openai_compatible"
-
-    def __init__(self) -> None:
-        if not settings.embedding_api_base_url or not settings.embedding_api_model:
-            raise EmbeddingError(
-                "EMBEDDING_PROVIDER=openai_compatible membutuhkan "
-                "EMBEDDING_API_BASE_URL dan EMBEDDING_API_MODEL di .env."
-            )
-        self._url = f"{settings.embedding_api_base_url.rstrip('/')}/embeddings"
-        self._model = settings.embedding_api_model
-        self._key = settings.embedding_api_key
-
-    async def embed(self, texts: list[str]) -> list[list[float]]:
-        headers = {"Authorization": f"Bearer {self._key}"} if self._key else {}
-        payload = {"model": self._model, "input": texts}
-        try:
-            async with httpx.AsyncClient(timeout=60) as client:
-                response = await client.post(self._url, json=payload, headers=headers)
-                response.raise_for_status()
-                data = response.json()
-        except httpx.HTTPError as exc:
-            raise EmbeddingError(
-                f"Gagal memanggil provider embedding di {self._url}: {exc}"
-            ) from exc
-
-        try:
-            # Urutan balasan tidak dijamin, jadi diurutkan ulang lewat "index".
-            items = sorted(data["data"], key=lambda item: item["index"])
-            return [_normalise(item["embedding"]) for item in items]
-        except (KeyError, TypeError) as exc:
-            raise EmbeddingError(f"Bentuk balasan tidak dikenali: {data}") from exc
-
-
 class HashStubEmbedding(EmbeddingBackend):
     """Embedding deterministik tanpa model — hanya untuk pengembangan.
 
@@ -149,7 +112,6 @@ class HashStubEmbedding(EmbeddingBackend):
 
 _BACKENDS: dict[EmbeddingProvider, type[EmbeddingBackend]] = {
     EmbeddingProvider.OLLAMA: OllamaEmbedding,
-    EmbeddingProvider.OPENAI_COMPATIBLE: OpenAICompatibleEmbedding,
     EmbeddingProvider.HASH_STUB: HashStubEmbedding,
 }
 

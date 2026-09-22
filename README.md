@@ -100,14 +100,19 @@ menunjukkan apakah penyebabnya pada pencarian atau pada model. Parameter
 
 ## Provider model
 
-Ollama adalah target akhir, tetapi lapisan provider membuat backend bisa
-dialihkan ke API OpenAI-compatible tanpa mengubah kode:
+Seluruh model berjalan lokal lewat Ollama, sesuai PRD §4.2. Tidak ada jalur
+ke API luar: isi dokumen dan pertanyaan tidak pernah meninggalkan mesin ini
+(keputusan D-17).
 
 ```
-LLM_PROVIDER=ollama              # ollama | openai_compatible
-EMBEDDING_PROVIDER=ollama        # ollama | openai_compatible | hash_stub
+LLM_PROVIDER=ollama              # ollama
+EMBEDDING_PROVIDER=ollama        # ollama | hash_stub
 OLLAMA_LLM_MODEL=qwen2.5:3b-instruct-q4_K_M
 ```
+
+`hash_stub` adalah embedding hashing tanpa model, khusus pengembangan —
+dihitung di dalam proses, bukan layanan luar. Jangan dipakai menilai mutu
+retrieval.
 
 > **Berganti model embedding mengharuskan seluruh dokumen diolah ulang.**
 > Vektor dua model berbeda tidak sebanding, dan pencarian tetap memberi

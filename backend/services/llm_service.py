@@ -1,13 +1,7 @@
-"""Pembuatan model LLM, dengan provider yang bisa ditukar lewat `.env`.
+"""Pembuatan model LLM. Satu provider saja: Ollama, sesuai PRD §4.2.
 
-Dua provider tersedia:
-
-- `ollama`            sesuai PRD §4.2, dipakai setelah model lokal diunduh.
-- `openai_compatible` layanan API yang meniru /v1/chat/completions.
-
-Keduanya dikembalikan sebagai `BaseChatModel` milik LangChain, sehingga
-`agent.py` tidak perlu tahu provider mana yang sedang aktif — dan tidak ada
-dua jalur pemanggilan LLM yang harus dirawat bersamaan (keputusan D-11).
+Dikembalikan sebagai `BaseChatModel` milik LangChain sehingga `agent.py`
+memanggil LLM lewat satu jalur saja (keputusan D-11).
 
 `embedding_service.py` sengaja tetap memakai httpx langsung: `hash_stub`
 tidak punya padanan di LangChain, dan pemeriksaan dimensi vektor di sana
@@ -20,7 +14,7 @@ import logging
 
 from langchain_core.language_models import BaseChatModel
 
-from backend.config import LLMProvider, settings
+from backend.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -29,33 +23,8 @@ class LLMError(RuntimeError):
     """Provider LLM tidak dapat disiapkan atau dipanggil."""
 
 
-def _build_openai_compatible(temperature: float) -> BaseChatModel:
-    from langchain_openai import ChatOpenAI
-
-    if not settings.llm_api_base_url or not settings.llm_api_model:
-        raise LLMError(
-            "LLM_PROVIDER=openai_compatible membutuhkan LLM_API_BASE_URL "
-            "dan LLM_API_MODEL di .env."
-        )
-    if not settings.llm_api_key:
-        raise LLMError(
-            "LLM_API_KEY masih kosong. Isi di .env, lalu jalankan "
-            "`docker compose up -d backend` — `restart` tidak membaca ulang .env."
-        )
-
-    return ChatOpenAI(
-        base_url=settings.llm_api_base_url,
-        api_key=settings.llm_api_key,
-        model=settings.llm_api_model,
-        temperature=temperature,
-        timeout=settings.ollama_timeout,
-        # Provider API bisa membalas 503 atau 429 secara sporadis; SDK-nya
-        # mencoba ulang sendiri dengan jeda menaik sebelum menyerah.
-        max_retries=settings.llm_max_retries,
-    )
-
-
-def _build_ollama(temperature: float) -> BaseChatModel:
+def get_chat_model(temperature: float = 0.2) -> BaseChatModel:
+    """Bangun model LLM Ollama sesuai setelan `.env`."""
     from langchain_ollama import ChatOllama
 
     return ChatOllama(
@@ -65,10 +34,3 @@ def _build_ollama(temperature: float) -> BaseChatModel:
         # num_ctx menjaga KV cache tetap kecil (keputusan D-02).
         num_ctx=settings.ollama_num_ctx,
     )
-
-
-def get_chat_model(temperature: float = 0.2) -> BaseChatModel:
-    """Bangun model LLM sesuai `LLM_PROVIDER` di `.env`."""
-    if settings.llm_provider is LLMProvider.OLLAMA:
-        return _build_ollama(temperature)
-    return _build_openai_compatible(temperature)

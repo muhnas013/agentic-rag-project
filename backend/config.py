@@ -17,10 +17,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 
 class LLMProvider(str, Enum):
-    """Penyedia LLM. `ollama` adalah target akhir sesuai PRD §4.2."""
+    """Penyedia LLM. Hanya Ollama, sesuai PRD §4.2."""
 
     OLLAMA = "ollama"
-    OPENAI_COMPATIBLE = "openai_compatible"
 
 
 class EmbeddingProvider(str, Enum):
@@ -32,7 +31,6 @@ class EmbeddingProvider(str, Enum):
     """
 
     OLLAMA = "ollama"
-    OPENAI_COMPATIBLE = "openai_compatible"
     HASH_STUB = "hash_stub"
 
 
@@ -74,24 +72,12 @@ class Settings(BaseSettings):
     llm_provider: LLMProvider = LLMProvider.OLLAMA
     embedding_provider: EmbeddingProvider = EmbeddingProvider.OLLAMA
 
-    llm_api_base_url: str = ""
-    llm_api_model: str = ""
-    llm_api_key: str = ""
-
-    embedding_api_base_url: str = ""
-    embedding_api_model: str = ""
-    embedding_api_key: str = ""
-
     # --- Ollama ---
     ollama_base_url: str = "http://localhost:11434"
     ollama_llm_model: str = "qwen2.5:7b-instruct-q4_K_M"
     ollama_embedding_model: str = "nomic-embed-text"
     ollama_timeout: int = 120
     ollama_num_ctx: int = 8192
-
-    # Provider API dapat membalas 503/429 secara sporadis; percobaan
-    # ulang dilakukan dengan jeda menaik sebelum menyerah.
-    llm_max_retries: int = 8
 
     # Dimensi kolom VECTOR mengikuti nilai ini, tidak ditulis mati (D-02b).
     embedding_dim: int = 768
@@ -177,18 +163,14 @@ class Settings(BaseSettings):
 
     @property
     def llm_model_name(self) -> str:
-        """Nama model LLM yang aktif, apa pun providernya."""
-        if self.llm_provider is LLMProvider.OLLAMA:
-            return self.ollama_llm_model
-        return self.llm_api_model
+        """Nama model LLM yang aktif."""
+        return self.ollama_llm_model
 
     @property
     def embedding_model_name(self) -> str:
         """Nama model embedding yang aktif, apa pun providernya."""
         if self.embedding_provider is EmbeddingProvider.OLLAMA:
             return self.ollama_embedding_model
-        if self.embedding_provider is EmbeddingProvider.OPENAI_COMPATIBLE:
-            return self.embedding_api_model
         return "hash_stub"
 
 

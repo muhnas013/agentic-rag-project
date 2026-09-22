@@ -48,10 +48,10 @@ praktek-ai-engineer/
 
 Git ada di branch `main`, belum ada remote.
 
-## Satu hal yang masih menunggu: embedding masih `hash_stub`
+## Catatan lama: embedding pernah memakai `hash_stub`
 
-`LLM_API_KEY` sudah diisi dan terbukti bekerja — `POST /chat` menghasilkan
-jawaban benar beserta sumbernya. Yang tersisa adalah embedding.
+> Sudah tidak berlaku. Embedding memakai `nomic-embed-text` lewat Ollama
+> sejak Fase 3; catatan di bawah dipertahankan sebagai riwayat.
 
 `hash_stub` hanya mencocokkan kata, bukan makna. Pipeline RAG terbukti benar,
 tetapi mutu retrieval belum bisa dinilai sama sekali. Dokumen uji sengaja
@@ -182,12 +182,10 @@ dieksekusi saat volume `postgres_data` masih kosong. Bila skripnya diubah,
 perubahan itu baru berlaku setelah `docker compose down -v` — yang juga
 menghapus seluruh data.
 
-**Provider Atria tidak stabil.** Pengukuran pada 21 Sep 2026: 9 dari 12
-permintaan berturut-turut dibalas HTTP 503 oleh load balancer-nya. Ini
-gangguan di sisi provider — permintaan lain berhasil pada saat yang sama.
-`LLM_MAX_RETRIES=8` menutupi sebagian besar kasus, tetapi kegagalan sesekali
-masih mungkin. Bila `/chat` membalas 503 berisi HTML, penyebabnya ini, bukan
-kode. Masalah ini hilang sendiri begitu Ollama lokal dipakai.
+**Ollama harus hidup lebih dulu.** Sejak D-17 tidak ada provider cadangan:
+bila `ollama serve` tidak berjalan di host, `/chat` membalas "Agent gagal
+menjawab: All connection attempts failed". Periksa dengan
+`curl localhost:11434/api/tags`.
 
 **`.env` tidak ikut Git.** Bila project dipindah ke mesin lain, salin `.env`
 secara manual atau buat ulang dari `.env.example`.

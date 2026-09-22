@@ -3,6 +3,7 @@
  */
 import { useCallback, useEffect, useState } from 'react'
 import ChatBox from './components/ChatBox'
+import Sidebar from './components/Sidebar'
 import LoginForm from './components/LoginForm'
 import {
   akunSaya,
@@ -44,9 +45,36 @@ function IndikatorStatus() {
   )
 }
 
+const KUNCI_SESI = 'agentic-rag-session'
+
+const sesiBaru = () => `sesi-${crypto.randomUUID().slice(0, 8)}`
+
+/** Sesi terakhir diingat, supaya memuat ulang halaman tidak kehilangan tempat. */
+function sesiTersimpan() {
+  let id = localStorage.getItem(KUNCI_SESI)
+  if (!id) {
+    id = sesiBaru()
+    localStorage.setItem(KUNCI_SESI, id)
+  }
+  return id
+}
+
 export default function App() {
   const [akun, setAkun] = useState(null)
   const [memeriksa, setMemeriksa] = useState(true)
+  const [sessionId, setSessionId] = useState(sesiTersimpan)
+  // Berubah setiap kali ada pesan baru, memicu sidebar menyegarkan daftarnya.
+  const [penanda, setPenanda] = useState(0)
+
+  const pindahSesi = useCallback((id) => {
+    setSessionId(id)
+    localStorage.setItem(KUNCI_SESI, id)
+  }, [])
+
+  const mulaiBaru = useCallback(() => {
+    pindahSesi(sesiBaru())
+    setPenanda((n) => n + 1)
+  }, [pindahSesi])
 
   const keluar = useCallback(() => {
     hapusToken()
@@ -104,11 +132,29 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-3xl flex-1 overflow-hidden">
-        {/* Peran diteruskan supaya tombol unggah disembunyikan bagi READ_ONLY,
-            yang memang akan ditolak backend dengan 403. */}
-        <ChatBox peran={akun.role} />
-      </main>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Sidebar disembunyikan pada layar sempit; percakapan tetap bisa
+            dipakai, hanya daftarnya yang tidak muat ditampilkan. */}
+        <div className="hidden sm:flex">
+          <Sidebar
+            sessionId={sessionId}
+            onPilih={pindahSesi}
+            onBaru={mulaiBaru}
+            penanda={penanda}
+            bolehHapus={akun.role !== 'READ_ONLY'}
+          />
+        </div>
+
+        <main className="mx-auto w-full max-w-3xl flex-1 overflow-hidden">
+          {/* Peran diteruskan supaya tombol unggah disembunyikan bagi READ_ONLY,
+              yang memang akan ditolak backend dengan 403. */}
+          <ChatBox
+            peran={akun.role}
+            sessionId={sessionId}
+            onPesanBaru={() => setPenanda((n) => n + 1)}
+          />
+        </main>
+      </div>
     </div>
   )
 }

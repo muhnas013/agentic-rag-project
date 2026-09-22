@@ -88,6 +88,16 @@ class ChatMessageItem(BaseModel):
     created_at: datetime
 
 
+class ChatSessionSummary(BaseModel):
+    """Satu percakapan pada daftar di sidebar."""
+
+    session_id: str
+    judul: str
+    jumlah_pesan: int
+    dimulai: datetime
+    terakhir: datetime
+
+
 class ChatHistoryResponse(BaseModel):
     session_id: str
     messages: list[ChatMessageItem]

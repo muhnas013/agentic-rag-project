@@ -10,18 +10,6 @@ import { ambilRiwayat, kirimPesan } from '../services/api'
 import MessageBubble from './MessageBubble'
 import UploadButton from './UploadButton'
 
-const KUNCI_SESI = 'agentic-rag-session'
-
-/** Sesi disimpan di browser agar riwayat bertahan saat halaman dimuat ulang. */
-function sesiTersimpan() {
-  let id = localStorage.getItem(KUNCI_SESI)
-  if (!id) {
-    id = `sesi-${crypto.randomUUID().slice(0, 8)}`
-    localStorage.setItem(KUNCI_SESI, id)
-  }
-  return id
-}
-
 /**
  * Contoh pertanyaan, satu untuk tiap tool.
  *
@@ -36,8 +24,7 @@ const CONTOH = [
   'Berapa total transaksi pada struk-uji.png?',
 ]
 
-export default function ChatBox({ peran }) {
-  const [sessionId] = useState(sesiTersimpan)
+export default function ChatBox({ peran, sessionId, onPesanBaru }) {
   const [pesan, setPesan] = useState([])
   const [masukan, setMasukan] = useState('')
   const [menunggu, setMenunggu] = useState(false)
@@ -46,6 +33,8 @@ export default function ChatBox({ peran }) {
   const inputRef = useRef(null)
 
   useEffect(() => {
+    setPesan([])
+    setMemuatRiwayat(true)
     ambilRiwayat(sessionId)
       .then((data) =>
         setPesan(
@@ -89,6 +78,8 @@ export default function ChatBox({ peran }) {
       tambah({ role: 'system', content: error.message, error: true })
     } finally {
       setMenunggu(false)
+      // Judul dan urutan di sidebar ikut berubah setelah pesan tersimpan.
+      onPesanBaru?.()
     }
   }
 

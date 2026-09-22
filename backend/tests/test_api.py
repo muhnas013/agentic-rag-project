@@ -164,3 +164,85 @@ class TestRiwayat:
     def test_limit_di_luar_batas_ditolak(self, client, sesi):
         r = client.get("/chat/history", params={"session_id": sesi, "limit": 9999})
         assert r.status_code == 422
+
+
+class TestDaftarSesi:
+    """Daftar percakapan untuk sidebar (PRD §15 - Chat history)."""
+
+    @pytest.fixture
+    def agent_tiruan(self, monkeypatch):
+        async def run_agent(question, history=None):
+            return AgentResult(answer=f"jawaban: {question}", tool_calls=[])
+
+        monkeypatch.setattr(main_module, "run_agent", run_agent)
+
+    @pytest.fixture
+    def dua_sesi(self, client, agent_tiruan):
+        import uuid
+
+        a, b = f"s-{uuid.uuid4().hex[:8]}", f"s-{uuid.uuid4().hex[:8]}"
+        client.post("/chat", json={"session_id": a, "message": "pertanyaan pertama sesi A"})
+        client.post("/chat", json={"session_id": b, "message": "pertanyaan pertama sesi B"})
+        yield a, b
+
+        from backend.database import SessionLocal
+        from backend.models import ChatHistory
+
+        db = SessionLocal()
+        try:
+            db.query(ChatHistory).filter(ChatHistory.session_id.in_([a, b])).delete(
+                synchronize_session=False
+            )
+            db.commit()
+        finally:
+            db.close()
+
+    def test_judul_diambil_dari_pesan_pertama_pengguna(self, client, dua_sesi):
+        a, _ = dua_sesi
+        daftar = client.get("/chat/sessions").json()
+        cocok = [s for s in daftar if s["session_id"] == a]
+        assert cocok and cocok[0]["judul"] == "pertanyaan pertama sesi A"
+
+    def test_menghitung_pesan_pengguna_dan_jawaban(self, client, dua_sesi):
+        a, _ = dua_sesi
+        cocok = [s for s in client.get("/chat/sessions").json() if s["session_id"] == a]
+        assert cocok[0]["jumlah_pesan"] == 2
+
+    def test_terbaru_lebih_dulu(self, client, dua_sesi):
+        a, b = dua_sesi
+        urut = [s["session_id"] for s in client.get("/chat/sessions").json()]
+        assert urut.index(b) < urut.index(a), "sesi yang lebih baru harus di atas"
+
+    def test_judul_panjang_dipotong(self, client, agent_tiruan, sesi):
+        panjang = "kata " * 40
+        client.post("/chat", json={"session_id": sesi, "message": panjang})
+        cocok = [s for s in client.get("/chat/sessions").json() if s["session_id"] == sesi]
+        assert cocok[0]["judul"].endswith("…")
+        assert len(cocok[0]["judul"]) <= main_module.PANJANG_JUDUL + 1
+
+    def test_tanpa_token_ditolak(self, client_anonim):
+        assert client_anonim.get("/chat/sessions").status_code == 401
+
+
+class TestHapusSesi:
+    @pytest.fixture
+    def agent_tiruan(self, monkeypatch):
+        async def run_agent(question, history=None):
+            return AgentResult(answer="ok", tool_calls=[])
+
+        monkeypatch.setattr(main_module, "run_agent", run_agent)
+
+    def test_menghapus_seluruh_pesannya(self, client, agent_tiruan, sesi):
+        client.post("/chat", json={"session_id": sesi, "message": "halo"})
+        assert client.delete(f"/chat/sessions/{sesi}").status_code == 204
+
+        riwayat = client.get("/chat/history", params={"session_id": sesi}).json()
+        assert riwayat["messages"] == []
+
+    def test_sesi_tidak_ada_menghasilkan_404(self, client):
+        assert client.delete("/chat/sessions/tidak-pernah-ada").status_code == 404
+
+    def test_read_only_tidak_boleh_menghapus(self, buat_pengguna, client, agent_tiruan, sesi):
+        client.post("/chat", json={"session_id": sesi, "message": "halo"})
+        c = buat_pengguna("uji_hapus", "READ_ONLY")
+        assert c.delete(f"/chat/sessions/{sesi}").status_code == 403

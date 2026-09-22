@@ -13,6 +13,8 @@ Endpoint pada fase ini:
     POST /query           pencarian RAG mentah, tanpa LLM
     POST /chat            jawaban berbasis dokumen
     GET  /chat/history    riwayat percakapan satu sesi
+    GET  /chat/sessions   daftar percakapan untuk sidebar
+    DELETE /chat/sessions/{id}  hapus satu percakapan
 
 `POST /chat` dilayani Agent Orchestrator (`agent.py`), yang memilih sendiri
 tool yang cocok. `POST /query` melewati Agent maupun LLM, sehingga berguna
@@ -54,6 +56,7 @@ from backend.schemas import (
     ChatMessageItem,
     ChatRequest,
     ChatResponse,
+    ChatSessionSummary,
     DocumentSummary,
     HealthResponse,
     LoginRequest,
@@ -147,6 +150,17 @@ def _to_source(chunk: RetrievedChunk, excerpt_length: int = 300) -> SourceItem:
         chunk_index=chunk.metadata.get("chunk_index"),
         excerpt=excerpt,
     )
+
+
+# Judul di sidebar dipotong supaya satu baris tetap terbaca utuh.
+PANJANG_JUDUL = 60
+
+
+def _potong_judul(pesan: str) -> str:
+    bersih = " ".join(pesan.split())
+    if len(bersih) <= PANJANG_JUDUL:
+        return bersih or "(tanpa judul)"
+    return bersih[:PANJANG_JUDUL].rstrip() + "…"
 
 
 def _recent_history(db: Session, session_id: str) -> list[dict[str, str]]:
@@ -444,6 +458,69 @@ async def chat_endpoint(
         tool_used=hasil.tool_used,
         sources=[_to_source(chunk) for chunk in hasil.sources],
     )
+
+
+@app.get("/chat/sessions", response_model=list[ChatSessionSummary], tags=["rag"])
+def chat_sessions(
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    _: User = Depends(wajib_peran(Peran.READ_ONLY)),
+) -> list[ChatSessionSummary]:
+    """Daftar percakapan, terbaru lebih dulu.
+
+    Judulnya diambil dari pesan pertama pengguna. Itu pilihan yang sengaja
+    sederhana: meminta model membuatkan judul berarti satu panggilan LLM
+    tambahan untuk tiap percakapan, dan pesan pertama hampir selalu sudah
+    cukup mewakili isinya.
+    """
+    pertama = (
+        select(
+            ChatHistory.session_id,
+            func.min(ChatHistory.id).label("id_pertama"),
+            func.count(ChatHistory.id).label("jumlah"),
+            func.min(ChatHistory.created_at).label("dimulai"),
+            func.max(ChatHistory.created_at).label("terakhir"),
+        )
+        .group_by(ChatHistory.session_id)
+        .subquery()
+    )
+
+    rows = db.execute(
+        select(
+            pertama.c.session_id,
+            ChatHistory.message,
+            pertama.c.jumlah,
+            pertama.c.dimulai,
+            pertama.c.terakhir,
+        )
+        .join(ChatHistory, ChatHistory.id == pertama.c.id_pertama)
+        .order_by(pertama.c.terakhir.desc())
+        .limit(limit)
+    ).all()
+
+    return [
+        ChatSessionSummary(
+            session_id=sid,
+            judul=_potong_judul(pesan),
+            jumlah_pesan=jumlah,
+            dimulai=dimulai,
+            terakhir=terakhir,
+        )
+        for sid, pesan, jumlah, dimulai, terakhir in rows
+    ]
+
+
+@app.delete("/chat/sessions/{session_id}", status_code=204, tags=["rag"])
+def hapus_sesi(
+    session_id: str,
+    db: Session = Depends(get_db),
+    _: User = Depends(wajib_peran(Peran.USER)),
+) -> None:
+    """Hapus satu percakapan beserta seluruh pesannya."""
+    jumlah = db.query(ChatHistory).filter(ChatHistory.session_id == session_id).delete()
+    db.commit()
+    if not jumlah:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Percakapan tidak ditemukan.")
 
 
 @app.get("/chat/history", response_model=ChatHistoryResponse, tags=["rag"])

@@ -83,6 +83,8 @@ Dokumentasi API interaktif: <http://localhost:8000/docs>.
 | POST | `/query` | READ_ONLY | Pencarian RAG mentah, tanpa LLM; `mode` = `hybrid`/`vector`/`fulltext` |
 | POST | `/chat` | READ_ONLY | Jawaban dari Agent |
 | GET | `/chat/history` | READ_ONLY | Riwayat percakapan satu sesi |
+| GET | `/chat/sessions` | READ_ONLY | Daftar percakapan untuk sidebar |
+| DELETE | `/chat/sessions/{id}` | USER | Hapus satu percakapan |
 
 `/query` sengaja dipisah dari `/chat`: bila jawaban keliru, endpoint itu
 menunjukkan apakah penyebabnya pada pencarian atau pada model. Parameter

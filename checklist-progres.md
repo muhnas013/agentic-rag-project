@@ -1158,6 +1158,41 @@ dari dokumen yang benar.
 
 Jumlah test: 149 -> 152, semuanya lulus.
 
+### Sidebar riwayat percakapan · selesai (22 Sep 2026)
+
+Diminta pengguna setelah memeriksa kelengkapan antarmuka. PRD §15 memang
+mencantumkan "Chat history", tetapi yang ada sebelumnya hanya **satu sesi
+yang bertahan saat halaman dimuat ulang** — tanpa daftar percakapan, tanpa
+cara berpindah, dan tanpa cara memulai yang baru. Secara harfiah memenuhi
+PRD, secara praktis belum.
+
+**Backend** — dua endpoint baru:
+
+- `GET /chat/sessions` mengelompokkan `chat_history` per sesi, mengembalikan
+  judul, jumlah pesan, dan waktu terakhir, diurutkan terbaru lebih dulu.
+  Judul diambil dari pesan pertama pengguna. Itu pilihan yang sengaja
+  sederhana: meminta model membuatkan judul berarti satu panggilan LLM
+  tambahan untuk tiap percakapan, sementara pesan pertama hampir selalu
+  sudah mewakili isinya.
+- `DELETE /chat/sessions/{id}` menghapus satu percakapan. Menuntut peran USER,
+  sejalan dengan aturan bahwa READ_ONLY tidak mengubah apa pun.
+
+**Frontend** — `Sidebar.jsx`, dan `sessionId` dipindahkan dari `ChatBox` ke
+`App` supaya bisa diganti dari luar. Daftar dikelompokkan menurut kedekatan
+waktu — "Hari ini", "Kemarin", "7 hari terakhir", "Lebih lama" — karena label
+begitu jauh lebih mudah ditangkap sekilas daripada tanggal.
+
+Daftarnya menyegarkan diri setiap kali ada pesan baru, lewat penanda yang
+dinaikkan `App`, sehingga judul dan urutan ikut berubah tanpa perlu memuat
+ulang halaman. Tombol hapus disembunyikan bagi READ_ONLY, sejalan dengan
+tombol unggah.
+
+**Diuji di browser**: sidebar tampil, tombol "Percakapan baru" mengosongkan
+layar dan membuat sesi baru, percakapan kedua muncul di atas yang pertama,
+dan mengklik percakapan lama memuat kembali seluruh isinya.
+
+Jumlah test: 152 -> 160, semuanya lulus.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

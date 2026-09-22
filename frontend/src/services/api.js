@@ -84,6 +84,11 @@ export const kirimPesan = ({ sessionId, pesan }) =>
 export const ambilRiwayat = (sessionId) =>
   panggil(() => http.get('/chat/history', { params: { session_id: sessionId } }))
 
+export const daftarSesi = () => panggil(() => http.get('/chat/sessions'))
+
+export const hapusSesi = (sessionId) =>
+  panggil(() => http.delete(`/chat/sessions/${sessionId}`))
+
 export const ambilKesehatan = () => panggil(() => http.get('/health'))
 
 export const daftarDokumen = () => panggil(() => http.get('/documents'))

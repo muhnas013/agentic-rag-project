@@ -3,6 +3,7 @@
  */
 import { useState } from 'react'
 import { masuk, simpanToken } from '../services/api'
+import { IkonPeringatan } from './Ikon'
 import Merek from './Merek'
 
 export default function LoginForm({ onBerhasil }) {
@@ -76,7 +77,7 @@ export default function LoginForm({ onBerhasil }) {
 
         {galat && (
           <p className="mt-4 flex items-start gap-2 rounded-xl border border-rose-900/60 bg-rose-950/40 px-3 py-2 text-sm text-rose-200">
-            <span aria-hidden className="mt-px shrink-0">⚠</span>
+            <IkonPeringatan ukuran={16} className="mt-0.5" />
             <span>{galat}</span>
           </p>
         )}

@@ -13,6 +13,13 @@
  */
 import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ambilRiwayat, kirimPesan } from '../services/api'
+import {
+  IkonBasisData,
+  IkonBerkas,
+  IkonCentang,
+  IkonGambar,
+  IkonPanahAtas,
+} from './Ikon'
 import { Lambang } from './Merek'
 import MessageBubble from './MessageBubble'
 import UploadButton from './UploadButton'
@@ -27,17 +34,17 @@ import UploadButton from './UploadButton'
  */
 const CONTOH = [
   {
-    ikon: '📄',
+    Ikon: IkonBerkas,
     label: 'Cari di dokumen',
     teks: 'Menurut dokumen kebijakan, berapa lama masa retensi dokumen kepegawaian?',
   },
   {
-    ikon: '🗄',
+    Ikon: IkonBasisData,
     label: 'Tanya database',
     teks: 'Ada berapa pegawai di bagian Keuangan?',
   },
   {
-    ikon: '🖼',
+    Ikon: IkonGambar,
     label: 'Baca gambar',
     teks: 'Berapa total transaksi pada struk-uji.png?',
   },
@@ -129,7 +136,7 @@ function KolomPertanyaan({
             aria-label="Kirim"
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-terang text-base font-semibold text-dasar transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-naik2 disabled:text-redup"
           >
-            <span aria-hidden>↑</span>
+            <IkonPanahAtas ukuran={16} />
           </button>
         </div>
       </div>
@@ -273,9 +280,7 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
                 title={contoh.teks}
                 className="flex items-center gap-2 rounded-full border border-garis bg-panel px-3.5 py-2 text-[13px] text-sedang transition hover:border-garis2 hover:bg-naik hover:text-terang"
               >
-                <span aria-hidden className="text-sm leading-none">
-                  {contoh.ikon}
-                </span>
+                <contoh.Ikon ukuran={15} />
                 {contoh.label}
               </button>
             ))}
@@ -301,7 +306,7 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
                 key={m.id}
                 className="animate-muncul mx-auto flex w-fit max-w-xl items-center gap-2 rounded-full border border-garis bg-naik px-3.5 py-1.5 text-xs text-sedang"
               >
-                <span aria-hidden>✓</span>
+                <IkonCentang ukuran={13} />
                 {m.content}
               </p>
             ) : (

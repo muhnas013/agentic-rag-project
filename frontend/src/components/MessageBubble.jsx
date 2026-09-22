@@ -12,6 +12,7 @@
  * itu untuk membedakan giliran siapa.
  */
 import Markdown from 'react-markdown'
+import { IkonPanahKanan, IkonPeringatan } from './Ikon'
 
 function LencanaTool({ tool }) {
   if (!tool || tool === 'none') return null
@@ -52,9 +53,10 @@ function DaftarSumber({ sources }) {
   return (
     <details className="group/sumber mt-4">
       <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 rounded-full border border-garis px-3 py-1 text-xs text-redup transition hover:border-garis2 hover:text-sedang">
-        <span aria-hidden className="transition group-open/sumber:rotate-90">
-          ›
-        </span>
+        <IkonPanahKanan
+          ukuran={13}
+          className="transition group-open/sumber:rotate-90"
+        />
         {sources.length} potongan dokumen dipakai
       </summary>
       <ul className="mt-2.5 space-y-1.5">
@@ -87,9 +89,7 @@ export default function MessageBubble({ message }) {
   if (error) {
     return (
       <div className="animate-muncul flex items-start gap-2.5 rounded-xl border border-rose-900/60 bg-rose-950/40 px-4 py-3 text-sm text-rose-200">
-        <span aria-hidden className="mt-px shrink-0">
-          ⚠
-        </span>
+        <IkonPeringatan ukuran={16} className="mt-0.5" />
         <span>{content}</span>
       </div>
     )

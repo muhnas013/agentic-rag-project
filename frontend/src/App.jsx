@@ -5,9 +5,13 @@
  * sehingga garis batas keduanya bertemu. Sebelumnya isi header dibatasi
  * `max-w-3xl` sendiri, dan hasilnya judul maupun tombol mengambang tidak
  * sejajar dengan apa pun di bawahnya.
+ *
+ * Susunan kanan atas mengikuti pola Grok: satu perintah berikon, satu
+ * tombol ikon saja, lalu dua pil — satu bergaris, satu terisi putih.
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
 import ChatBox from './components/ChatBox'
+import { IkonDokumen, IkonKeluar, IkonRoda } from './components/Ikon'
 import Merek from './components/Merek'
 import PanelDokumen from './components/PanelDokumen'
 import Sidebar from './components/Sidebar'
@@ -20,51 +24,94 @@ import {
   pasangPenangananSesiBerakhir,
 } from './services/api'
 
-function IndikatorStatus() {
+/**
+ * Tombol roda gigi: keadaan sistem, ditampilkan saat diminta.
+ *
+ * Sebelumnya nama model tampil terus-menerus sebagai lencana, dan rinciannya
+ * hanya muncul sebagai tooltip — yang tidak pernah ditemukan orang. Di balik
+ * roda gigi, keterangannya justru lebih lengkap dan headernya jauh lebih
+ * lengang. Titik kecil pada rodanya tetap memberi tahu bila ada yang salah,
+ * sehingga menyembunyikan rinciannya tidak berarti menyembunyikan masalah.
+ */
+function TombolStatus() {
   const [status, setStatus] = useState(null)
   const [galat, setGalat] = useState(null)
+  const [buka, setBuka] = useState(false)
+  const wadahRef = useRef(null)
 
   useEffect(() => {
     ambilKesehatan().then(setStatus).catch((e) => setGalat(e.message))
   }, [])
 
-  const dasar =
-    'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs transition'
+  useEffect(() => {
+    if (!buka) return
+    const tutup = (e) => {
+      if (e.key === 'Escape') setBuka(false)
+    }
+    const klikLuar = (e) => {
+      if (!wadahRef.current?.contains(e.target)) setBuka(false)
+    }
+    window.addEventListener('keydown', tutup)
+    document.addEventListener('mousedown', klikLuar)
+    return () => {
+      window.removeEventListener('keydown', tutup)
+      document.removeEventListener('mousedown', klikLuar)
+    }
+  }, [buka])
 
-  if (galat) {
-    return (
-      <span className={`${dasar} border-rose-900/60 bg-rose-950/40 text-rose-300`}>
-        <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
-        Backend terputus
-      </span>
-    )
-  }
+  const sehat = status?.status === 'ok'
+  const warnaTitik = galat
+    ? 'bg-rose-500'
+    : !status
+      ? 'bg-garis2'
+      : sehat
+        ? 'bg-emerald-500'
+        : 'bg-amber-500'
 
-  if (!status) {
-    return (
-      <span className={`${dasar} border-garis bg-naik text-redup`}>
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-garis2" />
-        Memeriksa…
-      </span>
-    )
-  }
+  const baris = [
+    ['Backend', galat ? 'terputus' : status ? status.status : 'memeriksa…'],
+    ['Model LLM', status?.llm_model],
+    ['Embedding', status?.embedding_model],
+    ['Dimensi vektor', status?.embedding_dim],
+    ['Database', status ? (status.database ? 'terhubung' : 'gagal') : null],
+    ['Extension vector', status ? (status.vector_extension ? 'aktif' : 'tidak ada') : null],
+  ].filter(([, nilai]) => nilai !== null && nilai !== undefined)
 
-  const sehat = status.status === 'ok'
   return (
-    <span
-      className={`${dasar} ${
-        sehat
-          ? 'border-emerald-900/60 bg-emerald-950/40 text-emerald-300'
-          : 'border-amber-900/60 bg-amber-950/40 text-amber-300'
-      }`}
-      title={`LLM ${status.llm_model} · embedding ${status.embedding_model} (${status.embedding_dim} dimensi)`}
-    >
-      <span
-        className={`h-1.5 w-1.5 rounded-full ${sehat ? 'bg-emerald-500' : 'bg-amber-500'}`}
-      />
-      <span className="hidden font-medium md:inline">{status.llm_model}</span>
-      <span className="font-medium md:hidden">Siap</span>
-    </span>
+    <div ref={wadahRef} className="relative">
+      <button
+        onClick={() => setBuka((b) => !b)}
+        title="Keadaan sistem"
+        aria-label="Keadaan sistem"
+        aria-expanded={buka}
+        className="relative flex h-8 w-8 items-center justify-center rounded-full text-sedang transition hover:bg-naik hover:text-terang"
+      >
+        <IkonRoda ukuran={17} />
+        <span
+          className={`absolute right-1 top-1 h-1.5 w-1.5 rounded-full ring-2 ring-panel ${warnaTitik}`}
+        />
+      </button>
+
+      {buka && (
+        <div className="animate-naik absolute right-0 top-10 z-30 w-64 rounded-xl border border-garis bg-panel p-3 shadow-2xl shadow-black/50">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-redup">
+            Keadaan sistem
+          </p>
+          {galat && <p className="text-xs text-rose-400">{galat}</p>}
+          <dl className="space-y-1.5">
+            {baris.map(([label, nilai]) => (
+              <div key={label} className="flex items-baseline justify-between gap-3">
+                <dt className="shrink-0 text-xs text-redup">{label}</dt>
+                <dd className="truncate text-right text-xs text-terang">{nilai}</dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-2.5 border-t border-garis pt-2 text-[11px] leading-relaxed text-redup">
+            Semua model berjalan lokal di mesin ini.
+          </p>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -159,37 +206,40 @@ export default function App() {
           <Merek />
         </div>
 
-        <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 sm:px-6">
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 sm:px-5">
           <div className="sm:hidden">
             <Merek />
           </div>
 
-          <div className="ml-auto flex items-center gap-2 sm:gap-3">
-            <IndikatorStatus />
-
+          <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
             <button
               onClick={() => setDokumenTerbuka(true)}
-              className="flex items-center gap-1.5 rounded-full border border-garis px-2.5 py-1 text-xs font-medium text-sedang transition hover:border-garis2 hover:bg-naik hover:text-terang"
+              className="flex items-center gap-2 rounded-full px-2.5 py-1.5 text-sm font-medium text-sedang transition hover:bg-naik hover:text-terang"
             >
-              <span aria-hidden>🗂</span>
+              <IkonDokumen ukuran={17} />
               <span className="hidden sm:inline">Dokumen</span>
             </button>
 
-            <div className="hidden items-center gap-2 border-l border-garis pl-3 sm:flex">
-              <span className="text-xs font-medium text-sedang">
-                {akun.username}
-              </span>
-              <span className="rounded-full bg-naik px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-redup">
+            <TombolStatus />
+
+            {/* Dua pil: identitas bergaris, lalu keluar terisi putih — bentuk
+                yang sama dengan pasangan tombol akun pada Grok. Yang terisi
+                dipakai untuk "Keluar" karena itu satu-satunya tindakan di
+                sini; identitas hanya keterangan, jadi tetap bergaris. */}
+            <span className="hidden items-center gap-1.5 rounded-full border border-garis px-3 py-1.5 text-sm text-sedang sm:flex">
+              {akun.username}
+              <span className="text-[10px] font-medium uppercase tracking-wide text-redup">
                 {akun.role}
               </span>
-            </div>
+            </span>
 
             <button
               onClick={keluar}
               title="Keluar"
-              className="rounded-full border border-transparent px-2.5 py-1 text-xs text-redup transition hover:border-garis hover:bg-naik hover:text-terang"
+              className="flex items-center gap-1.5 rounded-full bg-terang px-3.5 py-1.5 text-sm font-medium text-dasar transition hover:opacity-90"
             >
-              Keluar
+              <IkonKeluar ukuran={15} className="sm:hidden" />
+              <span className="hidden sm:inline">Keluar</span>
             </button>
           </div>
         </div>

@@ -5,20 +5,22 @@
  * satu komponen supaya ketiganya tidak pelan-pelan berbeda satu sama lain
  * setiap kali salah satunya disentuh.
  */
+import { IkonMerek } from './Ikon'
 
 const UKURAN = {
-  kecil: 'h-7 w-7 rounded-lg text-[13px]',
-  sedang: 'h-9 w-9 rounded-xl text-base',
-  besar: 'h-11 w-11 rounded-2xl text-xl',
+  kecil: { kelas: 'h-7 w-7 rounded-lg', ikon: 15 },
+  sedang: { kelas: 'h-9 w-9 rounded-xl', ikon: 18 },
+  besar: { kelas: 'h-11 w-11 rounded-2xl', ikon: 22 },
 }
 
 export function Lambang({ ukuran = 'kecil' }) {
+  const { kelas, ikon } = UKURAN[ukuran]
   return (
     <span
       aria-hidden
-      className={`flex shrink-0 items-center justify-center border border-garis bg-naik font-semibold text-terang ${UKURAN[ukuran]}`}
+      className={`flex shrink-0 items-center justify-center border border-garis bg-naik text-terang ${kelas}`}
     >
-      ◈
+      <IkonMerek ukuran={ikon} />
     </span>
   )
 }

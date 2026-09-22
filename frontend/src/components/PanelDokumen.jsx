@@ -7,12 +7,18 @@
  */
 import { useEffect, useState } from 'react'
 import { daftarDokumen } from '../services/api'
+import {
+  IkonBerkas,
+  IkonCari,
+  IkonGambar,
+  IkonKlip,
+  IkonPanahKanan,
+  IkonSilang,
+} from './Ikon'
 
-/** Ikon sederhana menurut jenis berkas, supaya daftarnya bisa dipindai sekilas. */
-function ikon(nama, jenis) {
-  if (jenis === 'gambar') return '🖼'
-  if (nama.toLowerCase().endsWith('.pdf')) return '📕'
-  return '📄'
+/** Ikon menurut jenis berkas, supaya daftarnya bisa dipindai sekilas. */
+function ikon(jenis) {
+  return jenis === 'gambar' ? IkonGambar : IkonBerkas
 }
 
 function tanggal(iso) {
@@ -89,9 +95,9 @@ export default function PanelDokumen({ onTutup, onPilih, penanda }) {
           <button
             onClick={onTutup}
             aria-label="Tutup"
-            className="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-lg leading-none text-redup transition hover:bg-naik hover:text-terang"
+            className="-mr-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-redup transition hover:bg-naik hover:text-terang"
           >
-            ×
+            <IkonSilang ukuran={15} />
           </button>
         </div>
 
@@ -99,12 +105,15 @@ export default function PanelDokumen({ onTutup, onPilih, penanda }) {
             menyulitkan — pada lima berkas, kolom ini justru mengganggu. */}
         {berkas.length > 8 && (
           <div className="border-b border-garis px-4 py-2.5">
-            <input
-              value={cari}
-              onChange={(e) => setCari(e.target.value)}
-              placeholder="Cari nama berkas…"
-              className="h-9 w-full rounded-lg border border-garis bg-naik px-3 text-sm text-terang outline-none transition placeholder:text-redup focus:border-garis2"
-            />
+            <div className="flex h-9 items-center gap-2 rounded-lg border border-garis bg-naik px-3 transition focus-within:border-garis2">
+              <IkonCari ukuran={15} className="text-redup" />
+              <input
+                value={cari}
+                onChange={(e) => setCari(e.target.value)}
+                placeholder="Cari nama berkas…"
+                className="min-w-0 flex-1 bg-transparent text-sm text-terang outline-none placeholder:text-redup"
+              />
+            </div>
           </div>
         )}
 
@@ -124,10 +133,11 @@ export default function PanelDokumen({ onTutup, onPilih, penanda }) {
           )}
           {galat && <p className="px-2 py-3 text-xs text-rose-400">{galat}</p>}
           {!memuat && !galat && berkas.length === 0 && (
-            <p className="px-2 py-8 text-center text-xs leading-relaxed text-redup">
+            <p className="flex flex-col items-center gap-1.5 px-2 py-8 text-center text-xs leading-relaxed text-redup">
+              <IkonKlip ukuran={18} />
               Belum ada berkas yang diunggah.
               <br />
-              Pakai tombol 📎 di kolom pertanyaan untuk menambahkan.
+              Pakai tombol lampiran di kolom pertanyaan untuk menambahkan.
             </p>
           )}
           {!memuat && !galat && berkas.length > 0 && tampil.length === 0 && (
@@ -137,7 +147,9 @@ export default function PanelDokumen({ onTutup, onPilih, penanda }) {
           )}
 
           <ul className="space-y-0.5">
-            {tampil.map((b) => (
+            {tampil.map((b) => {
+              const Ikon = ikon(b.jenis)
+              return (
               <li key={`${b.jenis}-${b.filename}`}>
                 <button
                   onClick={() => onPilih(b)}
@@ -146,9 +158,9 @@ export default function PanelDokumen({ onTutup, onPilih, penanda }) {
                 >
                   <span
                     aria-hidden
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-naik text-sm transition group-hover:bg-naik2"
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-naik text-redup transition group-hover:bg-naik2 group-hover:text-sedang"
                   >
-                    {ikon(b.filename, b.jenis)}
+                    <Ikon ukuran={15} />
                   </span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm text-sedang transition group-hover:text-terang">
@@ -165,15 +177,14 @@ export default function PanelDokumen({ onTutup, onPilih, penanda }) {
                       {tanggal(b.created_at)}
                     </span>
                   </span>
-                  <span
-                    aria-hidden
-                    className="shrink-0 pr-1 text-redup opacity-0 transition group-hover:text-terang group-hover:opacity-100"
-                  >
-                    ›
-                  </span>
+                  <IkonPanahKanan
+                    ukuran={14}
+                    className="mr-1 text-redup opacity-0 transition group-hover:text-terang group-hover:opacity-100"
+                  />
                 </button>
               </li>
-            ))}
+              )
+            })}
           </ul>
         </div>
 

@@ -1456,6 +1456,46 @@ tampilan yang harus sama-sama dirawat dan diuji.
 
 Backend tidak disentuh; 170 test tetap lulus.
 
+### Header kanan atas dan ikon disamakan dengan Grok · selesai (22 Sep 2026)
+
+Diminta pengguna sambil menunjukkan potongan header Grok: satu perintah
+berikon, satu tombol ikon saja, lalu dua pil — satu bergaris, satu terisi
+putih. Sekaligus meminta ikon-ikonnya disamakan.
+
+**Emoji diganti ikon garis.** Ini yang paling menentukan. Emoji dirender
+oleh font sistem, jadi bentuk dan warnanya berbeda di tiap mesin dan selalu
+berwarna penuh — pada tema gelap yang nyaris tanpa warna, itu satu-satunya
+hal yang paling merusak kesan rapi. Dibuat `Ikon.jsx` berisi 15 ikon SVG
+sebaris bergaya garis, semuanya memakai `currentColor` sehingga warnanya
+mengikuti teks induknya. **Tidak memasang pustaka ikon**: yang dipakai hanya
+belasan bentuk, sedangkan satu pustaka membawa ribuan. Tidak ada satu pun
+emoji tersisa di `src/`.
+
+**Susunan header** mengikuti gambar: `[folder] Dokumen` · `[roda gigi]` ·
+pil bergaris `admin ADMIN` · pil putih `Keluar`.
+
+Dua keputusan yang perlu dicatat:
+
+- **Roda gigi diberi isi, bukan sekadar hiasan.** Nama model yang tadinya
+  tampil terus sebagai lencana dipindah ke balik roda gigi, dan rinciannya
+  jadi lebih lengkap daripada sebelumnya — dulu hanya ada sebagai tooltip,
+  yang praktis tidak pernah ditemukan orang. Titik kecil berwarna pada
+  rodanya tetap memberi tahu bila backend bermasalah, jadi menyembunyikan
+  rinciannya tidak berarti menyembunyikan masalah.
+- **Pil putih dipakai untuk "Keluar", pil bergaris untuk identitas.** Pada
+  Grok yang terisi adalah "Sign up" — tindakan utamanya. Di sini satu-satunya
+  tindakan di sudut itu adalah keluar; identitas hanya keterangan, jadi tetap
+  bergaris dan tanpa efek hover agar tidak terbaca sebagai tombol.
+
+**Diuji di browser** pada 1280px dan 420px: header tidak lagi memuat emoji
+(diperiksa dengan pencocokan rentang Unicode, bukan dilihat), 5 SVG hadir,
+popover roda gigi menampilkan enam baris keadaan sistem dengan nilai
+sebenarnya, tertutup oleh Esc maupun klik di luar. Panel dokumen, layar
+sempit, dan pengisian kolom dari panel tetap bekerja. Tidak ada galat
+konsol, tidak ada gulir mendatar.
+
+Peringatan lint tetap 2. Backend tidak disentuh.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

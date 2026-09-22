@@ -8,6 +8,7 @@
  */
 import { useRef, useState } from 'react'
 import { unggahBerkas } from '../services/api'
+import { IkonKlip } from './Ikon'
 
 const EKSTENSI = '.pdf,.txt,.md,.png,.jpg,.jpeg,.webp'
 
@@ -66,7 +67,7 @@ export default function UploadButton({ onSelesai, onGagal, nonaktif }) {
             </span>
           </>
         ) : (
-          <span aria-hidden className="text-base">📎</span>
+          <IkonKlip ukuran={17} />
         )}
       </button>
     </>

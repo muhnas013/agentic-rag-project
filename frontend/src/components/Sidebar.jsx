@@ -3,6 +3,7 @@
  */
 import { useEffect, useState } from 'react'
 import { daftarSesi, hapusSesi } from '../services/api'
+import { IkonSilang, IkonTambah } from './Ikon'
 
 /**
  * Kelompokkan percakapan menurut kedekatan waktunya.
@@ -70,7 +71,7 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
           onClick={onBaru}
           className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-garis bg-naik text-sm font-medium text-terang transition hover:border-garis2 hover:bg-naik2"
         >
-          <span aria-hidden className="text-base leading-none">+</span>
+          <IkonTambah ukuran={16} />
           Percakapan baru
         </button>
       </div>
@@ -134,9 +135,9 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
                           onClick={(e) => hapus(e, s.session_id)}
                           title="Hapus percakapan"
                           aria-label={`Hapus percakapan ${s.judul}`}
-                          className="shrink-0 rounded px-1 text-redup opacity-0 transition hover:text-rose-400 focus:opacity-100 group-hover:opacity-100"
+                          className="mt-0.5 shrink-0 rounded p-0.5 text-redup opacity-0 transition hover:text-rose-400 focus:opacity-100 group-hover:opacity-100"
                         >
-                          ×
+                          <IkonSilang ukuran={13} />
                         </button>
                       )}
                     </div>

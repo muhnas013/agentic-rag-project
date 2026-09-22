@@ -1279,6 +1279,48 @@ Jadi kegagalannya transien, bukan cacat pada `requirements.txt`. Image lama
 tetap dipakai selama itu dan aplikasi berjalan normal, karena kode di-mount
 sebagai volume sehingga perubahan kode tetap berlaku tanpa build ulang.
 
+### Panel daftar berkas terunggah · selesai (22 Sep 2026)
+
+Diminta pengguna: cara melihat dokumen apa saja yang sudah diunggah.
+
+**Backend sebagian sudah ada** — `GET /documents` dan `daftarDokumen()` di
+`api.js` sudah ditulis sejak Fase 3, hanya belum pernah dipakai antarmuka.
+Tetapi jawabannya bolong: endpoint itu membaca tabel `documents`, sedangkan
+**gambar tidak pernah masuk ke sana**. `POST /upload` menyimpan gambar ke
+disk saja; teksnya baru dibaca ketika `Image_OCR` dipanggil. Jadi `img.jpeg`
+yang baru diunggah pengguna tidak akan muncul sama sekali — padahal justru
+nama berkas itulah yang ia butuhkan untuk menanyakan isinya.
+
+Endpoint diperluas: gambar di folder unggahan ikut didaftarkan lewat
+`_gambar_terunggah()`, dengan nama asli dipulihkan dari pola
+`<uuid>__<nama>` (D-12), berkas lama tanpa awalan dipakai apa adanya, dan
+nama yang diunggah berulang muncul sekali memakai waktu terbaru. Medan
+`jenis` ("dokumen" / "gambar") ditambahkan ke `DocumentSummary` dengan nilai
+bawaan, jadi tidak memutus pemakai lama.
+
+**Frontend** — `PanelDokumen.jsx`, dibuka dari tombol "Dokumen" di header.
+Bukan bagian tetap sidebar: sidebar sudah dipakai riwayat percakapan dan
+disembunyikan pada layar sempit, sedangkan daftar berkas justru perlu tetap
+terjangkau di sana.
+
+Gambar ditandai "dibaca saat ditanyakan", bukan "0 potongan" — angka nol di
+situ benar tetapi terbaca sebagai kegagalan.
+
+**Memilih berkas mengisikan awal pertanyaannya** (`Menurut dokumen <nama>, `
+atau `Apa isi gambar <nama>? `), alasan yang sama dengan B-29: menyebut nama
+berkas selalu tepat, "dokumen tadi" tidak. Dikerjakan lewat
+`useImperativeHandle`, bukan prop keadaan — ini kejadian sesaat, dan memilih
+berkas yang sama dua kali harus tetap bekerja tanpa penanda buatan.
+
+**Diuji di browser** (Playwright, chromium sistem): panel tampil, ringkasan
+membaca "11 dokumen · 5 gambar", 16 baris terdaftar dengan `img.jpeg` di
+antaranya, mengklik satu baris menutup panel dan mengisi kolom pertanyaan
+dengan `Menurut dokumen uji-admin.txt, `. Tidak ada galat konsol.
+
+Peringatan lint tetap 2 — sama persis dengan sebelum perubahan.
+
+Jumlah test: 163 -> 170, semuanya lulus.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

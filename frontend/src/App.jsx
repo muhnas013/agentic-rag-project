@@ -1,8 +1,9 @@
 /**
  * Kerangka halaman: layar masuk, atau header status + antarmuka percakapan.
  */
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import ChatBox from './components/ChatBox'
+import PanelDokumen from './components/PanelDokumen'
 import Sidebar from './components/Sidebar'
 import LoginForm from './components/LoginForm'
 import {
@@ -65,6 +66,23 @@ export default function App() {
   const [sessionId, setSessionId] = useState(sesiTersimpan)
   // Berubah setiap kali ada pesan baru, memicu sidebar menyegarkan daftarnya.
   const [penanda, setPenanda] = useState(0)
+  const [dokumenTerbuka, setDokumenTerbuka] = useState(false)
+  // Dinaikkan setiap unggahan berhasil, supaya daftar berkas ikut berubah
+  // tanpa perlu ditutup lalu dibuka lagi.
+  const [penandaDokumen, setPenandaDokumen] = useState(0)
+  // Memilih berkas menyiapkan awal pertanyaannya di kolom masukan. Dilakukan
+  // lewat ref, bukan prop: ini satu kejadian sesaat, bukan keadaan yang perlu
+  // diingat — dan memilih berkas yang sama dua kali harus tetap bekerja.
+  const chatRef = useRef(null)
+
+  const pilihBerkas = useCallback((berkas) => {
+    chatRef.current?.siapkanPertanyaan(
+      berkas.jenis === 'gambar'
+        ? `Apa isi gambar ${berkas.filename}? `
+        : `Menurut dokumen ${berkas.filename}, `,
+    )
+    setDokumenTerbuka(false)
+  }, [])
 
   const pindahSesi = useCallback((id) => {
     setSessionId(id)
@@ -116,6 +134,12 @@ export default function App() {
           <h1 className="text-sm font-semibold text-slate-800">Agentic RAG Assistant</h1>
           <div className="flex items-center gap-4">
             <IndikatorStatus />
+            <button
+              onClick={() => setDokumenTerbuka(true)}
+              className="text-xs text-slate-500 underline-offset-2 transition hover:text-slate-800 hover:underline"
+            >
+              Dokumen
+            </button>
             <span className="hidden text-xs text-slate-500 sm:inline">
               {akun.username}
               <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600">
@@ -149,12 +173,24 @@ export default function App() {
           {/* Peran diteruskan supaya tombol unggah disembunyikan bagi READ_ONLY,
               yang memang akan ditolak backend dengan 403. */}
           <ChatBox
+            ref={chatRef}
             peran={akun.role}
             sessionId={sessionId}
             onPesanBaru={() => setPenanda((n) => n + 1)}
+            onUnggah={() => setPenandaDokumen((n) => n + 1)}
           />
         </main>
       </div>
+
+      {/* Dirender hanya saat terbuka, sehingga daftarnya selalu dimuat ulang
+          dan tidak menyimpan keadaan basi dari pembukaan sebelumnya. */}
+      {dokumenTerbuka && (
+        <PanelDokumen
+          onTutup={() => setDokumenTerbuka(false)}
+          onPilih={pilihBerkas}
+          penanda={penandaDokumen}
+        />
+      )}
     </div>
   )
 }

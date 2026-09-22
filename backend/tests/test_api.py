@@ -6,6 +6,7 @@ import pytest
 
 from backend import main as main_module
 from backend.agent import AgentResult
+from backend.config import settings
 from backend.tools import ToolInvocation
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
@@ -51,6 +52,83 @@ class TestDokumen:
         cocok = [d for d in daftar if d["filename"] == nama_berkas]
         assert len(cocok) == 1
         assert cocok[0]["chunks"] == 1
+
+
+class TestDaftarBerkasTerunggah:
+    """`GET /documents` menjawab "apa saja yang sudah saya unggah?".
+
+    Dokumen teks dan gambar datang dari dua tempat berbeda — tabel
+    `documents` dan folder unggahan — karena gambar tidak diindeks saat
+    diunggah. Bagi pengguna keduanya sama-sama unggahan, jadi keduanya
+    harus muncul.
+    """
+
+    @pytest.fixture
+    def folder_gambar(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(settings, "upload_dir", tmp_path)
+        return tmp_path
+
+    def test_gambar_ikut_terdaftar_walau_tidak_diindeks(self, client, folder_gambar):
+        (folder_gambar / "abc123__struk.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+        daftar = client.get("/documents").json()
+        cocok = [d for d in daftar if d["filename"] == "struk.png"]
+        assert len(cocok) == 1
+        assert cocok[0]["jenis"] == "gambar"
+        # Nol potongan adalah keadaan yang benar bagi gambar, bukan kegagalan.
+        assert cocok[0]["chunks"] == 0
+
+    def test_nama_asli_dipulihkan_dari_awalan_uuid(self, client, folder_gambar):
+        """Pengguna menyebut "nota.png"; di disk namanya berawalan UUID (D-12)."""
+        (folder_gambar / "deadbeef__nota.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+        nama = [d["filename"] for d in client.get("/documents").json()]
+        assert "nota.png" in nama
+        assert "deadbeef__nota.png" not in nama
+
+    def test_berkas_lama_tanpa_awalan_dipakai_apa_adanya(self, client, folder_gambar):
+        """Berkas dari sebelum D-12 hanya bernama `<uuid>.<ext>`."""
+        (folder_gambar / "f00d.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+
+        nama = [d["filename"] for d in client.get("/documents").json()]
+        assert "f00d.png" in nama
+
+    def test_berkas_bukan_gambar_tidak_ikut(self, client, folder_gambar):
+        """Dokumen teks sudah terwakili tabel `documents`; jangan dobel."""
+        (folder_gambar / "xyz__catatan.txt").write_text("isi")
+
+        nama = [d["filename"] for d in client.get("/documents").json()]
+        assert "catatan.txt" not in nama
+
+    def test_nama_sama_diunggah_berkali_kali_muncul_sekali(
+        self, client, folder_gambar
+    ):
+        import os
+        import time
+
+        lama = folder_gambar / "aaa__sama.png"
+        baru = folder_gambar / "bbb__sama.png"
+        for berkas in (lama, baru):
+            berkas.write_bytes(b"\x89PNG\r\n\x1a\n")
+        os.utime(baru, (time.time() + 60, time.time() + 60))
+
+        cocok = [d for d in client.get("/documents").json() if d["filename"] == "sama.png"]
+        assert len(cocok) == 1
+
+    def test_folder_unggahan_belum_ada_tidak_menggagalkan(
+        self, client, tmp_path, monkeypatch
+    ):
+        monkeypatch.setattr(settings, "upload_dir", tmp_path / "belum-ada")
+        assert client.get("/documents").status_code == 200
+
+    def test_dokumen_terindeks_ditandai_jenis_dokumen(
+        self, client, nama_berkas, folder_gambar
+    ):
+        client.post("/documents", json={"filename": nama_berkas, "content": "isi uji"})
+
+        cocok = [d for d in client.get("/documents").json() if d["filename"] == nama_berkas]
+        assert cocok[0]["jenis"] == "dokumen"
+        assert cocok[0]["chunks"] >= 1
 
 
 class TestUpload:

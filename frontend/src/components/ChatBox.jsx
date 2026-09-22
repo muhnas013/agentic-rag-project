@@ -5,7 +5,7 @@
  * Agent, dan menampilkan tool yang dipakai beserta potongan dokumen
  * sumbernya.
  */
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useImperativeHandle, useRef, useState } from 'react'
 import { ambilRiwayat, kirimPesan } from '../services/api'
 import MessageBubble from './MessageBubble'
 import UploadButton from './UploadButton'
@@ -24,7 +24,7 @@ const CONTOH = [
   'Berapa total transaksi pada struk-uji.png?',
 ]
 
-export default function ChatBox({ peran, sessionId, onPesanBaru }) {
+export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }) {
   const [pesan, setPesan] = useState([])
   const [masukan, setMasukan] = useState('')
   const [menunggu, setMenunggu] = useState(false)
@@ -53,6 +53,16 @@ export default function ChatBox({ peran, sessionId, onPesanBaru }) {
   useEffect(() => {
     ujungRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [pesan, menunggu])
+
+  // Dipakai panel dokumen untuk menyiapkan awal pertanyaan, dengan alasan
+  // yang sama seperti setelah unggahan: menyebut nama berkas secara eksplisit
+  // selalu tepat, sedangkan "dokumen tadi" tidak (B-29).
+  useImperativeHandle(ref, () => ({
+    siapkanPertanyaan(teks) {
+      setMasukan(teks)
+      inputRef.current?.focus()
+    },
+  }), [])
 
   function tambah(m) {
     setPesan((sebelumnya) => [...sebelumnya, { id: crypto.randomUUID(), ...m }])
@@ -104,6 +114,7 @@ export default function ChatBox({ peran, sessionId, onPesanBaru }) {
         : `Apa isi gambar ${hasil.filename}? `,
     )
     inputRef.current?.focus()
+    onUnggah?.()
   }
 
   return (

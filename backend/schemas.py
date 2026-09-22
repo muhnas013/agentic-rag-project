@@ -48,6 +48,10 @@ class DocumentSummary(BaseModel):
     filename: str
     chunks: int
     created_at: datetime
+    # Gambar tidak diindeks saat diunggah — teksnya baru dibaca ketika
+    # Image_OCR dipanggil — sehingga `chunks` selalu 0 dan antarmuka perlu
+    # membedakannya agar angka itu tidak terbaca sebagai kegagalan.
+    jenis: Literal["dokumen", "gambar"] = "dokumen"
 
 
 class QueryRequest(BaseModel):

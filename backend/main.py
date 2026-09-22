@@ -9,7 +9,7 @@ Endpoint pada fase ini:
     GET  /health          status aplikasi, database, dan provider model
     POST /upload          unggah berkas lalu olah menjadi embedding
     POST /documents       tambah dokumen dari teks langsung
-    GET  /documents       daftar dokumen yang sudah terindeks
+    GET  /documents       daftar berkas yang sudah diunggah
     POST /query           pencarian RAG mentah, tanpa LLM
     POST /chat            jawaban berbasis dokumen
     GET  /chat/history    riwayat percakapan satu sesi
@@ -26,6 +26,8 @@ from __future__ import annotations
 import io
 import logging
 from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -376,12 +378,58 @@ async def add_text_document(
     return UploadResponse(filename=payload.filename, status="processed", chunks=chunks)
 
 
+def _gambar_terunggah() -> list[DocumentSummary]:
+    """Gambar yang tersimpan di folder unggahan.
+
+    Berkas disimpan sebagai `<uuid>__<nama-asli>` (keputusan D-12); yang
+    ditampilkan adalah bagian setelah `__`, karena nama itulah yang diketik
+    pengguna dan yang dikenali `Image_OCR`. Berkas lama dari sebelum D-12
+    tidak punya bagian itu, jadi namanya dipakai apa adanya.
+
+    Satu nama yang diunggah berkali-kali muncul sekali saja, memakai waktu
+    unggahan terbarunya — sama seperti dokumen yang dikelompokkan per nama.
+    """
+    dasar = Path(settings.upload_dir)
+    if not dasar.is_dir():
+        return []
+
+    terbaru: dict[str, float] = {}
+    for berkas in dasar.iterdir():
+        if not berkas.is_file():
+            continue
+        if berkas.suffix.lower() not in settings.allowed_image_extensions:
+            continue
+        nama = berkas.name.split("__", 1)[1] if "__" in berkas.name else berkas.name
+        waktu = berkas.stat().st_mtime
+        if waktu > terbaru.get(nama, 0.0):
+            terbaru[nama] = waktu
+
+    return [
+        DocumentSummary(
+            filename=nama,
+            chunks=0,
+            created_at=datetime.fromtimestamp(waktu),
+            jenis="gambar",
+        )
+        for nama, waktu in terbaru.items()
+    ]
+
+
 @app.get("/documents", response_model=list[DocumentSummary], tags=["documents"])
 def list_documents(
     db: Session = Depends(get_db),
     _: User = Depends(wajib_peran(Peran.READ_ONLY)),
 ) -> list[DocumentSummary]:
-    """Daftar dokumen yang sudah terindeks beserta jumlah potongannya."""
+    """Daftar berkas yang sudah diunggah, terbaru lebih dulu.
+
+    Dua sumber digabung di sini karena di mata pengguna keduanya sama-sama
+    "yang sudah saya unggah", walau nasibnya berbeda: dokumen teks menjadi
+    potongan berembedding di tabel `documents`, sedangkan gambar hanya
+    disimpan ke disk dan teksnya baru dibaca ketika `Image_OCR` dipanggil
+    (lihat `POST /upload`). Menampilkan yang pertama saja membuat gambar
+    yang baru diunggah tampak hilang — dan justru namanya yang dibutuhkan
+    pengguna untuk menanyakan isinya.
+    """
     rows = db.execute(
         select(
             Document.filename,
@@ -392,10 +440,14 @@ def list_documents(
         .order_by(func.min(Document.created_at).desc())
     ).all()
 
-    return [
+    dokumen = [
         DocumentSummary(filename=filename, chunks=chunks, created_at=created_at)
         for filename, chunks, created_at in rows
     ]
+
+    return sorted(
+        dokumen + _gambar_terunggah(), key=lambda d: d.created_at, reverse=True
+    )
 
 
 # --------------------------------------------------------------------------

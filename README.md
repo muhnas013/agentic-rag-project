@@ -79,7 +79,7 @@ Dokumentasi API interaktif: <http://localhost:8000/docs>.
 | GET | `/health` | — | Status database, pgvector, dan model |
 | POST | `/upload` | USER | Unggah dokumen atau gambar |
 | POST | `/documents` | USER | Tambah dokumen dari teks langsung |
-| GET | `/documents` | READ_ONLY | Daftar dokumen terindeks |
+| GET | `/documents` | READ_ONLY | Daftar berkas terunggah — dokumen terindeks **dan** gambar |
 | POST | `/query` | READ_ONLY | Pencarian RAG mentah, tanpa LLM; `mode` = `hybrid`/`vector`/`fulltext` |
 | POST | `/chat` | READ_ONLY | Jawaban dari Agent |
 | GET | `/chat/history` | READ_ONLY | Riwayat percakapan satu sesi |

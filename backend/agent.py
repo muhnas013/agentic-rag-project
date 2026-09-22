@@ -85,7 +85,7 @@ MAKS_PERCOBAAN = len(SUHU_PERCOBAAN)
 
 PESAN_KOSONG = (
     "Maaf, saya belum berhasil menyusun jawaban untuk pertanyaan itu. "
-    "Coba ulangi dengan kalimat yang sedikit berbeda."
+    "Coba sebutkan nama berkasnya, misalnya: \"Menurut dokumen laporan.pdf, ...\""
 )
 
 
@@ -134,6 +134,17 @@ def meneruskan_galat_tool(jawaban: str) -> bool:
     return any(p.lower() in jawaban.lower() for p in PENANDA_GALAT_TOOL)
 
 
+# Dipakai jalur cadangan. Tidak menyebut tool sama sekali — justru
+# keberadaan daftar tool itulah yang memicu model membisu.
+SYSTEM_PROMPT_TANPA_TOOL = """Kamu adalah asisten yang menjawab dalam bahasa Indonesia.
+
+Kamu sedang tidak dapat mengakses dokumen maupun database. Bila pertanyaan
+pengguna menyangkut isi sebuah berkas, mintalah ia menyebutkan nama berkasnya
+secara jelas, lalu jelaskan bahwa pertanyaannya akan dicarikan setelah itu.
+
+Jangan mengarang isi dokumen. Jawab ringkas, maksimal tiga kalimat."""
+
+
 @dataclass
 class AgentResult:
     """Hasil satu kali pemanggilan agent."""
@@ -160,6 +171,56 @@ class AgentResult:
         return [chunk for call in self.tool_calls for chunk in call.sources]
 
 
+# Banyaknya dokumen yang disebut di system prompt. Dibatasi supaya daftar
+# yang panjang tidak menggusur jatah konteks untuk hasil tool.
+MAKS_DOKUMEN_DISEBUT = 15
+
+
+def daftar_dokumen() -> str:
+    """Susun daftar dokumen terindeks untuk disisipkan ke system prompt.
+
+    Tanpa ini Agent tidak tahu dokumen apa saja yang ada, sehingga
+    pertanyaan seperti "jelaskan isi pdf yang saya kirim" dijawab dari
+    dokumen mana pun yang kebetulan mirip — pada pengujian, dari berkas
+    yang sama sekali berbeda dengan yang baru diunggah pengguna.
+
+    Yang terbaru disebut lebih dulu, karena pertanyaan bersifat menunjuk
+    ("dokumen tadi", "file yang saya kirim") hampir selalu mengacu ke
+    unggahan terakhir.
+    """
+    from sqlalchemy import func, select
+
+    from backend.database import SessionLocal
+    from backend.models import Document
+
+    db = SessionLocal()
+    try:
+        baris = db.execute(
+            select(Document.filename, func.min(Document.created_at).label("waktu"))
+            .group_by(Document.filename)
+            .order_by(func.min(Document.created_at).desc())
+            .limit(MAKS_DOKUMEN_DISEBUT)
+        ).all()
+    except Exception as exc:  # daftar yang gagal dimuat tidak boleh menggagalkan jawaban
+        logger.warning("Daftar dokumen gagal dimuat: %s", exc)
+        return ""
+    finally:
+        db.close()
+
+    if not baris:
+        return "\n\nBelum ada dokumen yang terindeks."
+
+    nama = [n for n, _ in baris]
+    return (
+        "\n\nDokumen yang tersedia, dari yang paling baru diunggah:\n"
+        + "\n".join(f"- {n}" for n in nama)
+        + "\n\nBila pengguna menyebut \"dokumen tadi\", \"file yang saya kirim\", atau "
+        f"\"pdf tersebut\" tanpa nama, yang dimaksud hampir selalu {nama[0]}. "
+        "Isi argumen `filename` pada RAG_Search dengan nama berkas itu agar "
+        "pencarian tidak melebar ke dokumen lain."
+    )
+
+
 def build_agent(temperature: float = 0.2):
     """Bangun agent baru.
 
@@ -170,11 +231,43 @@ def build_agent(temperature: float = 0.2):
     """
     from langchain.agents import create_agent
 
+    # Daftar dokumen disusun ulang tiap permintaan, karena isinya berubah
+    # setiap kali pengguna mengunggah berkas baru.
     return create_agent(
         model=get_chat_model(temperature),
         tools=TOOLS,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=SYSTEM_PROMPT + daftar_dokumen(),
     )
+
+
+async def _jawab_tanpa_tool(question: str, history: list[dict[str, str]] | None) -> str:
+    """Jalur cadangan ketika model membisu dengan tools terpasang.
+
+    Pada `qwen2.5:3b` ditemukan kegagalan yang tajam: pertanyaan yang memuat
+    kata "pdf" membuat model menghasilkan **satu token lalu berhenti**
+    (`eval_count: 1`) — tetapi hanya bila daftar tool ikut dikirim. Tanpa
+    tools, pertanyaan yang sama dijawab wajar.
+
+    Karena itu percobaan terakhir dilakukan tanpa tools. Jawabannya memang
+    tidak memakai dokumen, tetapi biasanya berupa permintaan klarifikasi yang
+    berguna — jauh lebih baik daripada permintaan maaf yang tidak menjelaskan
+    apa pun.
+    """
+    pesan: list[tuple[str, str]] = [("system", SYSTEM_PROMPT_TANPA_TOOL)]
+    pesan += [(p["role"], p["content"]) for p in (history or [])]
+    pesan.append(("user", question))
+
+    try:
+        balasan = await get_chat_model(temperature=0.4).ainvoke(pesan)
+    except Exception as exc:
+        logger.warning("Jalur cadangan tanpa tool ikut gagal: %s", exc)
+        return ""
+
+    isi = balasan.content
+    teks = isi if isinstance(isi, str) else "".join(
+        b.get("text", "") for b in isi if isinstance(b, dict)
+    )
+    return teks.strip()
 
 
 async def run_agent(question: str, history: list[dict[str, str]] | None = None) -> AgentResult:
@@ -229,6 +322,12 @@ async def run_agent(question: str, history: list[dict[str, str]] | None = None) 
             "Jawaban kosong (percobaan %d/%d, suhu %.1f) untuk: %r",
             percobaan, MAKS_PERCOBAAN, suhu, question[:120],
         )
+
+    if not jawaban:
+        # Model membisu dengan tools terpasang; coba sekali lagi tanpa tools.
+        logger.warning("Seluruh percobaan kosong; beralih ke jalur tanpa tool.")
+        jawaban = await _jawab_tanpa_tool(question, history)
+        jejak = []
 
     if not jawaban:
         jawaban = PESAN_KOSONG

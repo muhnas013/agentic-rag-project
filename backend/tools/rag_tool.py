@@ -23,7 +23,7 @@ TEMPLATE_POTONGAN = "[sumber: {filename} #bagian-{index}]\n{isi}"
 
 
 @tool("RAG_Search")
-async def rag_search(query: str) -> str:
+async def rag_search(query: str, filename: str = "") -> str:
     """Cari informasi di dalam dokumen internal yang sudah diunggah pengguna.
 
     Gunakan untuk pertanyaan mengenai isi dokumen, kebijakan, peraturan,
@@ -31,10 +31,14 @@ async def rag_search(query: str) -> str:
 
     Args:
         query: Pertanyaan atau kata kunci yang ingin dicari di dokumen.
+        filename: Batasi pencarian pada satu berkas saja, diisi persis seperti
+            nama pada daftar dokumen. Kosongkan untuk mencari di semua dokumen.
     """
     db = SessionLocal()
     try:
-        potongan = filter_relevant(await search_similar_chunks(db, query))
+        potongan = filter_relevant(
+            await search_similar_chunks(db, query, filename=filename or None)
+        )
     except EmbeddingError as exc:
         record(ToolInvocation("RAG_Search", ok=False, detail=str(exc)))
         return f"Pencarian dokumen gagal: {exc}"
@@ -43,13 +47,14 @@ async def rag_search(query: str) -> str:
 
     if not potongan:
         record(ToolInvocation("RAG_Search", ok=True, detail="tidak ada dokumen cocok"))
+        batas = f" pada berkas '{filename}'" if filename else ""
         return (
-            "Tidak ada dokumen yang cocok dengan pertanyaan itu. "
+            f"Tidak ada isi yang cocok dengan pertanyaan itu{batas}. "
             "Sampaikan kepada pengguna bahwa informasinya tidak ditemukan."
         )
 
     record(ToolInvocation("RAG_Search", ok=True, sources=potongan))
-    logger.info("RAG_Search '%s' -> %d potongan", query, len(potongan))
+    logger.info("RAG_Search %r (berkas=%r) -> %d potongan", query, filename or "*", len(potongan))
 
     return "\n\n".join(
         TEMPLATE_POTONGAN.format(

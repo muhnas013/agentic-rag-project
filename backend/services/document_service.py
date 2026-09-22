@@ -427,9 +427,13 @@ def filter_relevant(
     return disaring
 
 
-def _kondisi_dasar() -> list:
+def _kondisi_dasar(filename: str | None = None) -> list:
     """Syarat yang berlaku untuk semua jalur pencarian."""
     kondisi = [Document.embedding.is_not(None)]
+    if filename:
+        # Dicocokkan longgar: model kerap menyebut nama tanpa ekstensi,
+        # atau hanya sebagiannya.
+        kondisi.append(Document.filename.ilike(f"%{filename}%"))
     if settings.rag_quarantine_suspicious:
         # Potongan yang ditandai saat masuk tidak pernah ikut hasil pencarian.
         # Disaring di SQL, bukan sesudahnya, supaya potongan bersih berikutnya
@@ -453,7 +457,7 @@ def _jadikan_potongan(document: Document, skor: float) -> RetrievedChunk:
     )
 
 
-async def search_vector(db: Session, query: str, limit: int) -> list[RetrievedChunk]:
+async def search_vector(db: Session, query: str, limit: int, filename: str | None = None) -> list[RetrievedChunk]:
     """Pencarian kemiripan makna lewat pgvector (PRD §9).
 
     `score` adalah kemiripan cosine 0..1; makin besar makin mirip. pgvector
@@ -464,7 +468,7 @@ async def search_vector(db: Session, query: str, limit: int) -> list[RetrievedCh
 
     rows = db.execute(
         select(Document, distance)
-        .where(*_kondisi_dasar())
+        .where(*_kondisi_dasar(filename))
         .order_by(distance)
         .limit(limit)
     ).all()
@@ -496,7 +500,7 @@ def _tsquery_atau(query: str):
     )
 
 
-def search_fulltext(db: Session, query: str, limit: int) -> list[RetrievedChunk]:
+def search_fulltext(db: Session, query: str, limit: int, filename: str | None = None) -> list[RetrievedChunk]:
     """Pencarian teks penuh PostgreSQL (PRD §25 - Hybrid Search).
 
     Melengkapi pencarian vektor, bukan menggantikannya. Keduanya gagal pada
@@ -513,7 +517,7 @@ def search_fulltext(db: Session, query: str, limit: int) -> list[RetrievedChunk]
 
     rows = db.execute(
         select(Document, peringkat)
-        .where(*_kondisi_dasar(), kolom_tsv.op("@@")(tsquery))
+        .where(*_kondisi_dasar(filename), kolom_tsv.op("@@")(tsquery))
         .order_by(peringkat.desc())
         .limit(limit)
     ).all()
@@ -572,6 +576,7 @@ async def search_similar_chunks(
     query: str,
     top_k: int | None = None,
     mode: str | None = None,
+    filename: str | None = None,
 ) -> list[RetrievedChunk]:
     """Cari potongan dokumen yang paling relevan (PRD §9 dan §25).
 
@@ -584,15 +589,15 @@ async def search_similar_chunks(
     mode = mode or ("hybrid" if settings.rag_hybrid_enabled else "vector")
 
     if mode == "vector":
-        return await search_vector(db, query, limit)
+        return await search_vector(db, query, limit, filename)
     if mode == "fulltext":
-        return search_fulltext(db, query, limit)
+        return search_fulltext(db, query, limit, filename)
 
     # Tiap jalur mengambil lebih banyak daripada yang diminta, supaya
     # penggabungan punya bahan untuk saling mengangkat.
     lebar = max(limit * 3, 10)
-    vektor = await search_vector(db, query, lebar)
-    teks = search_fulltext(db, query, lebar)
+    vektor = await search_vector(db, query, lebar, filename)
+    teks = search_fulltext(db, query, lebar, filename)
     return gabung_rrf(
         vektor,
         teks,

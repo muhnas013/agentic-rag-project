@@ -1121,6 +1121,43 @@ apalagi ketika dokumen lain yang juga membahas pengadaan ikut masuk konteks.
 
 Jumlah test: 144 -> 149, semuanya lulus.
 
+### Perbaikan dari laporan pengguna: unggah PDF lalu bertanya · 22 Sep 2026
+
+Dilaporkan: setelah mengunggah PDF dan bertanya "coba jelaskan apa isi pdf
+tersebut", yang muncul hanya permintaan maaf. Penelusuran membuka **dua
+masalah berbeda** yang kebetulan bertumpuk.
+
+**B-28 — kata "pdf" membuat model membisu.** Bukan bug kode. Diuji dengan
+mengganti satu kata: "apa isi **pdf** tersebut" menghasilkan kosong,
+"apa isi **dokumen** tersebut" dijawab normal. Balasan mentah Ollama
+memastikannya — `eval_count: 1`, model menghasilkan satu token lalu berhenti.
+Dan itu **hanya terjadi bila daftar tool ikut dikirim**; tanpa tools,
+pertanyaan yang sama dijawab 332 karakter.
+
+Diperbaiki dengan menjadikan percobaan terakhir berjalan tanpa tools,
+memakai system prompt terpisah yang tidak menyebut tool sama sekali.
+
+**B-29 — tidak ada gagasan "dokumen yang baru diunggah".** Ini yang lebih
+berbahaya: "rangkumkan isi file pdf yang saya kirim ini" merangkum dokumen
+lain, dan terdengar meyakinkan karena rangkumannya memang benar — untuk
+berkas yang salah.
+
+Diperbaiki tiga lapis: `RAG_Search` menerima pembatas `filename`, daftar
+dokumen terindeks disisipkan ke system prompt tiap permintaan, dan setelah
+unggah berhasil **kolom pertanyaan langsung terisi** `Menurut dokumen <nama>, `.
+
+Lapis ketiga ternyata yang menentukan. Dua yang pertama membuat model
+berhenti menjawab dari dokumen yang salah — ia gantinya meminta klarifikasi,
+lebih jujur tetapi belum mulus. Model 3B membaca daftar dokumen namun tidak
+menyimpulkan bahwa "pdf tersebut" berarti unggahan terakhir. Menyebut nama
+berkas selalu tepat, jadi namanya disiapkan sistem.
+
+**Alur nyata diuji di browser** dari unggah sampai jawaban: berkas terindeks,
+kolom terisi otomatis, pengguna melanjutkan kalimat, dan jawabannya datang
+dari dokumen yang benar.
+
+Jumlah test: 149 -> 152, semuanya lulus.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

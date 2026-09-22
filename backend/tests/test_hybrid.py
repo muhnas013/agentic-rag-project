@@ -173,3 +173,69 @@ class TestModePencarian:
         client.post("/documents", json={"filename": nama_berkas, "content": "kebijakan arsip"})
         r = client.post("/query", json={"query": "kebijakan arsip"})
         assert r.status_code == 200
+
+
+class TestPenyaringNamaBerkas:
+    """Pencarian dapat dibatasi ke satu berkas.
+
+    Diperlukan karena pertanyaan yang menunjuk ("jelaskan isi pdf tadi")
+    tidak dapat diandalkan pada model 3B: tanpa pembatas, jawabannya sempat
+    diambil dari dokumen yang sama sekali berbeda dengan yang baru diunggah.
+    """
+
+    @pytest.fixture
+    def dua_dokumen(self, client):
+        import uuid
+
+        a = f"alpha-{uuid.uuid4().hex[:6]}.txt"
+        b = f"beta-{uuid.uuid4().hex[:6]}.txt"
+        client.post("/documents", json={"filename": a, "content": "kebijakan retensi arsip daerah"})
+        client.post("/documents", json={"filename": b, "content": "kebijakan retensi arsip daerah"})
+        yield a, b
+
+        from backend.database import SessionLocal
+        from backend.models import Document
+
+        db = SessionLocal()
+        try:
+            db.query(Document).filter(Document.filename.in_([a, b])).delete(synchronize_session=False)
+            db.commit()
+        finally:
+            db.close()
+
+    def test_membatasi_ke_satu_berkas(self, client, dua_dokumen):
+        a, _ = dua_dokumen
+        from backend.database import SessionLocal
+        from backend.services.document_service import search_fulltext
+
+        db = SessionLocal()
+        try:
+            hasil = search_fulltext(db, "kebijakan retensi arsip", 5, filename=a)
+        finally:
+            db.close()
+        assert {h.filename for h in hasil} == {a}
+
+    def test_tanpa_pembatas_keduanya_muncul(self, client, dua_dokumen):
+        a, b = dua_dokumen
+        from backend.database import SessionLocal
+        from backend.services.document_service import search_fulltext
+
+        db = SessionLocal()
+        try:
+            nama = {h.filename for h in search_fulltext(db, "kebijakan retensi arsip", 10)}
+        finally:
+            db.close()
+        assert {a, b} <= nama
+
+    def test_pencocokan_longgar_tanpa_ekstensi(self, client, dua_dokumen):
+        """Model kerap menyebut nama tanpa ekstensi, atau hanya sebagiannya."""
+        a, _ = dua_dokumen
+        from backend.database import SessionLocal
+        from backend.services.document_service import search_fulltext
+
+        db = SessionLocal()
+        try:
+            hasil = search_fulltext(db, "kebijakan retensi arsip", 5, filename=a.removesuffix(".txt"))
+        finally:
+            db.close()
+        assert {h.filename for h in hasil} == {a}

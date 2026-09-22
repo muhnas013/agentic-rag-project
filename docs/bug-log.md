@@ -289,3 +289,50 @@ nilai yang harus dibaca dari dalam tabel.
 **Sisa yang tidak tertutup:** penalaran rentang angka ("150 juta masuk baris
 yang mana") tetap gagal. Itu batas model 3B, bukan ekstraksi — potongan yang
 terambil sudah memuat jawabannya.
+
+### B-28 ✅ Pertanyaan yang memuat kata "pdf" dijawab kosong
+**Gejala dilaporkan pengguna.** Setelah mengunggah PDF lalu bertanya
+"coba jelaskan apa isi pdf tersebut", yang muncul hanya
+"Maaf, saya belum berhasil menyusun jawaban untuk pertanyaan itu."
+
+**Sebab.** Bukan bug pada kode, melainkan kegagalan model yang sangat
+spesifik. Diuji dengan mengganti satu kata:
+
+| Pertanyaan | Dengan tools | Tanpa tools |
+|------------|--------------|-------------|
+| "apa isi **pdf** tersebut" | kosong | menjawab (332 karakter) |
+| "apa isi **dokumen** tersebut" | menjawab | menjawab |
+| "apa isi **berkas pdf** tersebut" | menjawab | menjawab |
+
+Balasan mentah Ollama memastikannya: `eval_count: 1` — model menghasilkan
+**satu token lalu berhenti**. Hanya terjadi bila daftar tool ikut dikirim.
+
+**Perbaikan.** Percobaan terakhir dijalankan **tanpa tools**, memakai system
+prompt terpisah yang tidak menyebut tool sama sekali. Jawabannya memang tidak
+memakai dokumen, tetapi berupa permintaan klarifikasi yang berguna — jauh
+lebih baik daripada permintaan maaf yang tidak menjelaskan apa pun.
+
+### B-29 ✅ Pertanyaan tentang "dokumen yang baru diunggah" dijawab dari berkas lain
+**Gejala.** "Rangkumkan isi file pdf yang saya kirim ini" merangkum dokumen
+yang sama sekali berbeda — dan terdengar meyakinkan, karena rangkumannya
+memang benar untuk dokumen yang salah itu.
+
+**Sebab.** Sistem tidak punya gagasan "dokumen yang baru diunggah". Pencarian
+menelusuri seluruh korpus, dan pertanyaan yang menunjuk tanpa nama tidak
+memberi pembatas apa pun.
+
+**Perbaikan, tiga lapis:**
+1. `RAG_Search` menerima argumen `filename` untuk membatasi pencarian pada
+   satu berkas, dicocokkan longgar karena model kerap menyebut nama tanpa
+   ekstensi.
+2. Daftar dokumen terindeks disisipkan ke system prompt tiap permintaan,
+   diurutkan dari yang terbaru.
+3. **Yang paling menentukan:** setelah unggah berhasil, kolom pertanyaan di
+   UI langsung terisi `Menurut dokumen <nama>, ` sehingga pengguna tinggal
+   melanjutkan kalimatnya.
+
+Lapis ketiga diperlukan karena dua yang pertama ternyata tidak cukup: model
+3B membaca daftar dokumen tetapi tidak menyimpulkan bahwa "pdf tersebut"
+berarti unggahan terakhir — ia malah meminta klarifikasi. Lebih jujur
+daripada sebelumnya, tetapi belum mulus. Menyebut nama berkas selalu tepat,
+jadi namanya disiapkan sistem alih-alih dibebankan kepada pengguna.

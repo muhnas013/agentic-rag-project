@@ -43,6 +43,7 @@ export default function ChatBox({ peran }) {
   const [menunggu, setMenunggu] = useState(false)
   const [memuatRiwayat, setMemuatRiwayat] = useState(true)
   const ujungRef = useRef(null)
+  const inputRef = useRef(null)
 
   useEffect(() => {
     ambilRiwayat(sessionId)
@@ -94,9 +95,24 @@ export default function ChatBox({ peran }) {
   function tanganiUnggahan(hasil) {
     const pesanHasil =
       hasil.status === 'processed'
-        ? `Dokumen "${hasil.filename}" tersimpan dan diindeks menjadi ${hasil.chunks} potongan. Silakan tanyakan isinya.`
-        : `Gambar "${hasil.filename}" tersimpan. Tanyakan isinya, misalnya "Berapa total pada ${hasil.filename}?"`
+        ? `Dokumen "${hasil.filename}" tersimpan dan diindeks menjadi ${hasil.chunks} potongan.`
+        : `Gambar "${hasil.filename}" tersimpan.`
     tambah({ role: 'system', content: pesanHasil })
+
+    // Nama berkas langsung diisikan ke kolom pertanyaan.
+    //
+    // Tanpa ini, pertanyaan sewajarnya seperti "jelaskan isi pdf tadi" tidak
+    // bisa diandalkan: model 3B tidak cukup patuh menyimpulkan bahwa yang
+    // dimaksud adalah unggahan terakhir, sehingga jawabannya bisa diambil
+    // dari dokumen lain. Menyebut namanya secara eksplisit selalu tepat —
+    // jadi namanya disiapkan di sini, bukan dibebankan pada pengguna untuk
+    // mengetiknya kembali.
+    setMasukan(
+      hasil.status === 'processed'
+        ? `Menurut dokumen ${hasil.filename}, `
+        : `Apa isi gambar ${hasil.filename}? `,
+    )
+    inputRef.current?.focus()
   }
 
   return (
@@ -180,6 +196,7 @@ export default function ChatBox({ peran }) {
           />
           )}
           <input
+            ref={inputRef}
             value={masukan}
             onChange={(e) => setMasukan(e.target.value)}
             placeholder="Tulis pertanyaan…"

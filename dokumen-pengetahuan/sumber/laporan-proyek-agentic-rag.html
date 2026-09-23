@@ -1,0 +1,448 @@
+<html>
+<head><meta charset="utf-8"><link rel="stylesheet" href="laporan.css"></head>
+<body>
+
+<div class="sampul">
+  <p class="jenis">Laporan Proyek untuk Asesmen Sertifikasi BNSP</p>
+  <h1>Agentic RAG — Sistem AI Assistant Lokal</h1>
+  <p class="anak">Retrieval-Augmented Generation dengan Agent Orchestrator,<br>
+     berjalan sepenuhnya di infrastruktur sendiri</p>
+
+  <div class="meta">
+    <p><b>Penyusun</b> tik</p>
+    <p><b>Instansi</b> Pemerintah Kabupaten Hulu Sungai Selatan</p>
+    <p><b>Periode</b> 21 – 23 September 2026</p>
+    <p><b>Repositori</b> github.com/muhnas013/agentic-rag-project</p>
+  </div>
+</div>
+
+<div class="pindah"></div>
+
+<h2>1. Ringkasan Eksekutif</h2>
+<p>
+Dokumen ini melaporkan perancangan, pembangunan, dan pengujian sebuah
+<b>AI Assistant berbasis Agentic RAG</b> yang seluruh komponennya berjalan
+di mesin sendiri. Sistem menerima pertanyaan berbahasa Indonesia, lalu
+memilih sendiri cara menjawabnya: mencari pada dokumen yang telah diindeks,
+membaca teks dari gambar, atau mengambil data dari basis data relasional.
+</p>
+<p>
+Perbedaan pokoknya dengan RAG konvensional terletak pada <b>Agent
+Orchestrator</b>: model bahasa tidak sekadar menerima konteks yang sudah
+disiapkan, melainkan memutuskan sendiri tool mana yang dipanggil untuk
+setiap pertanyaan.
+</p>
+
+<h3>Capaian terukur</h3>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th>Aspek</th><th>Hasil</th></tr>
+<tr><td>Pengujian otomatis</td><td><b>194 test lulus</b>, seluruhnya deterministik</td></tr>
+<tr><td>Matriks uji fungsional (PRD §17)</td><td>6/7 pada keadaan biasa, <b>7/7</b> setelah model dipanaskan</td></tr>
+<tr><td>Mutu retrieval bahasa Indonesia</td><td>peringkat-1 benar <b>6/10 → 9/10</b> setelah hybrid search</td></tr>
+<tr><td>Perutean tool oleh Agent</td><td><b>4/4</b> pada demo terhadap sistem berjalan</td></tr>
+<tr><td>Ketahanan terhadap kebocoran system prompt</td><td><b>0 dari 3</b> percobaan berhasil menembus</td></tr>
+<tr><td>Endpoint REST</td><td>14</td></tr>
+<tr><td>Keputusan arsitektur terdokumentasi</td><td>18 (D-01 … D-18)</td></tr>
+<tr><td>Bug tercatat dengan sebab dan perbaikannya</td><td>32 (B-01 … B-32)</td></tr>
+</table>
+
+<h3>Ukuran pekerjaan</h3>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th>Komponen</th><th class="n">Baris</th><th>Keterangan</th></tr>
+<tr><td>Backend Python</td><td class="n">5.742</td><td>termasuk 1.763 baris kode pengujian</td></tr>
+<tr><td>Frontend React</td><td class="n">2.110</td><td>JSX dan CSS</td></tr>
+<tr><td>Dokumentasi</td><td class="n">4.376</td><td>spesifikasi, catatan keputusan, catatan bug, panduan</td></tr>
+<tr><td>Riwayat Git</td><td class="n">35</td><td>commit, tiap perubahan disertai alasannya</td></tr>
+</table>
+
+<div class="catatan">
+<b>Catatan mengenai angka di dokumen ini.</b> Seluruh angka pada laporan
+berasal dari pengukuran terhadap sistem yang benar-benar berjalan, bukan
+perkiraan. Di beberapa tempat dicantumkan pula hasil <i>sebelum</i>
+perbaikan, karena selisihnyalah yang menunjukkan apakah sebuah perubahan
+benar-benar bekerja.
+</div>
+
+<div class="pindah"></div>
+
+<h2>2. Latar Belakang dan Tujuan</h2>
+<p>
+Instansi pemerintah menyimpan dokumen kebijakan, pedoman, dan arsip yang
+sebagian bersifat internal. Memanfaatkan layanan AI publik untuk
+menelusurinya berarti mengirim isi dokumen itu ke pihak ketiga. Kebutuhan
+yang mendasari proyek ini adalah kemampuan bertanya kepada dokumen sendiri
+<b>tanpa satu byte pun meninggalkan mesin</b>.
+</p>
+
+<h3>Tujuan</h3>
+<ol>
+<li>Membangun AI Assistant yang seluruhnya berjalan lokal.</li>
+<li>Menyatukan tiga sumber jawaban — dokumen, gambar, dan basis data — di
+    bawah satu antarmuka percakapan.</li>
+<li>Membuat jawaban dapat ditelusuri: setiap kutipan menyebut berkas asalnya.</li>
+<li>Menegakkan pembatasan akses dan keamanan pada tingkat sistem, bukan
+    sekadar pada antarmuka.</li>
+</ol>
+
+<h3>Batasan yang ditetapkan sejak awal</h3>
+<ul>
+<li>Tidak memakai layanan AI berbayar maupun API pihak ketiga.</li>
+<li>Berjalan pada satu laptop dengan GPU 8 GB.</li>
+<li>Bahasa utama antarmuka dan dokumen: bahasa Indonesia.</li>
+</ul>
+
+<h2>3. Arsitektur Sistem</h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="6" class="diagram">
+<tr><td colspan="3" align="center"><b>Antarmuka Chat</b><br>React + Vite</td></tr>
+<tr><td colspan="3" align="center" class="panah">↓ &nbsp; REST + JWT &nbsp; ↓</td></tr>
+<tr><td colspan="3" align="center"><b>FastAPI</b> — <code>main.py</code><br>
+    validasi skema · otorisasi tiga peran</td></tr>
+<tr><td colspan="3" align="center" class="panah">↓</td></tr>
+<tr><td colspan="3" align="center"><b>Agent Orchestrator</b><br>
+    LangChain <code>create_agent</code> — memilih tool sendiri</td></tr>
+<tr>
+  <td align="center"><b>RAG_Search</b><br>hybrid: vektor + teks penuh</td>
+  <td align="center"><b>Image_OCR</b><br>PaddleOCR di CPU</td>
+  <td align="center"><b>SQL_Query</b><br>hanya <code>SELECT</code></td>
+</tr>
+<tr>
+  <td align="center">PostgreSQL + pgvector<br><span class="kecil">indeks HNSW &amp; GIN</span></td>
+  <td align="center">Folder unggahan<br><span class="kecil">nama diganti UUID</span></td>
+  <td align="center">PostgreSQL<br><span class="kecil">user read-only</span></td>
+</tr>
+<tr><td colspan="3" align="center"><b>Ollama</b> — LLM dan embedding, berjalan di host demi akses GPU</td></tr>
+</table>
+
+<p>
+Agent menerima pertanyaan beserta daftar berkas yang tersedia, lalu memilih
+tool. Hasil tool dikembalikan kepada Agent sebagai <b>data</b> — bukan
+perintah — sebelum jawaban akhir disusun.
+</p>
+
+<h2>4. Teknologi yang Digunakan</h2>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th>Lapis</th><th>Teknologi</th><th>Alasan pemilihan</th></tr>
+<tr><td>API</td><td>FastAPI, Pydantic</td><td>validasi skema otomatis dan dokumentasi OpenAPI</td></tr>
+<tr><td>Agent</td><td>LangChain <code>create_agent</code></td><td>tool calling baku, satu jalur pemanggilan LLM</td></tr>
+<tr><td>LLM</td><td>Ollama — qwen2.5:3b-instruct-q4_K_M</td><td>tool calling andal dan bahasa Indonesia memadai pada VRAM 8 GB</td></tr>
+<tr><td>Embedding</td><td>nomic-embed-text (768 dimensi)</td><td>ringan, berjalan berdampingan dengan LLM</td></tr>
+<tr><td>Basis data</td><td>PostgreSQL 16 + pgvector</td><td>vektor dan data relasional dalam satu mesin basis data</td></tr>
+<tr><td>OCR</td><td>PaddleOCR (CPU)</td><td>sengaja di CPU agar tidak berebut VRAM dengan LLM</td></tr>
+<tr><td>Frontend</td><td>Vite, React 19, Tailwind 4</td><td>waktu muat cepat, tanpa pustaka komponen tambahan</td></tr>
+<tr><td>Kemasan</td><td>Docker Compose</td><td>basis data dan backend; Ollama di host demi akses GPU</td></tr>
+</table>
+
+<h3>Perangkat keras pengembangan</h3>
+<p>
+NVIDIA GeForce RTX 4060 Laptop, VRAM 8.188 MiB. Pengukuran langsung
+menunjukkan model LLM menempati 2,16 GB dan pemuatan pertama memerlukan
+2,6 detik; permintaan berikutnya dilayani dalam 0,04 detik selama model
+masih berada di memori.
+</p>
+
+<div class="pindah"></div>
+
+<h2>5. Rancangan Basis Data</h2>
+<p>
+Potongan dokumen, vektor embedding, dan indeks pencarian teks penuh berada
+pada satu tabel. Menyatukannya berarti tidak ada sinkronisasi antar-penyimpanan
+yang bisa tertinggal.
+</p>
+<pre>
+Tabel documents
+  id            bigint        primary key
+  filename      varchar(255)  nama asli berkas
+  content       text          isi satu potongan
+  embedding     vector(768)   lebar mengikuti EMBEDDING_DIM, tidak ditulis mati
+  metadata      jsonb         nomor potongan, model embedding, path sumber
+  content_tsv   tsvector      GENERATED ALWAYS AS (to_tsvector('indonesian', content))
+  created_at    timestamp
+
+Indeks
+  ix_documents_embedding_hnsw   hnsw (embedding vector_cosine_ops) m=16 ef=64
+  ix_documents_content_tsv      gin (content_tsv)
+</pre>
+<p>
+Kolom <code>content_tsv</code> dihitung PostgreSQL sendiri, bukan diisi kode
+aplikasi. Dengan begitu tidak ada jalur kode yang bisa lupa memperbaruinya
+ketika isi dokumen berubah.
+</p>
+<p>
+Indeks <b>HNSW</b> dipilih, bukan IVFFlat, karena tidak memerlukan pembangunan
+ulang saat jumlah baris bertambah banyak.
+</p>
+
+<h2>6. Implementasi Fitur Utama</h2>
+
+<h3>6.1 Pipeline RAG dan hybrid search</h3>
+<p>
+Dokumen yang diunggah diekstraksi teksnya, dipotong (800 karakter, tumpang
+tindih 120), diubah menjadi vektor, lalu disimpan. Pencarian menggabungkan
+<b>dua jalur</b>: kemiripan vektor dan pencarian teks penuh PostgreSQL,
+disatukan dengan <i>Reciprocal Rank Fusion</i>.
+</p>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th>Konfigurasi</th><th>Peringkat-1 benar</th><th>Benar dalam 3 teratas</th></tr>
+<tr><td>Vektor saja</td><td>6/10</td><td>8/10</td></tr>
+<tr><td>Teks penuh saja</td><td>9/10</td><td>10/10</td></tr>
+<tr><td><b>Hybrid, bobot 1 : 2</b></td><td><b>9/10</b></td><td><b>10/10</b></td></tr>
+</table>
+<p>
+Bobot kedua jalur sengaja tidak sama. Penggabungan berbobot sama justru
+menghasilkan 8/10 — lebih buruk daripada teks penuh sendirian, karena jalur
+yang lebih lemah menarik hasil yang benar ke bawah. Angka 1 : 2 berasal dari
+pengukuran, bukan tebakan.
+</p>
+<p>
+Jalur vektor tetap dipertahankan meski sendirian kalah, sebab keduanya gagal
+pada hal yang berbeda: pencarian teks penuh buta terhadap pertanyaan yang
+tidak berbagi satu kata pun dengan dokumennya.
+</p>
+
+<h3>6.2 Agent Orchestrator dan ketiga tool</h3>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th>Tool</th><th>Fungsi</th><th>Pengamanan</th></tr>
+<tr><td>RAG_Search</td><td>mencari pada dokumen terindeks</td><td>potongan bermuatan prompt injection dikarantina</td></tr>
+<tr><td>Image_OCR</td><td>membaca teks dari gambar</td><td>path dibatasi ke folder unggahan</td></tr>
+<tr><td>SQL_Query</td><td><code>SELECT</code> ke tabel yang diizinkan</td><td>user read-only, allowlist tabel, <code>LIMIT</code> paksa, timeout</td></tr>
+</table>
+<p>
+Agent memilih tool sendiri. Jawaban menyertakan tool yang benar-benar
+dipanggil beserta potongan dokumen sumbernya, sehingga setiap jawaban dapat
+ditelusuri kembali ke asalnya.
+</p>
+
+<h3>6.3 Antarmuka pengguna</h3>
+<p>
+Antarmuka percakapan menampilkan lencana tool, jawaban ter-render Markdown,
+dan panel sumber berisi nama berkas beserta skor kemiripannya. Skor
+digambarkan sebagai bilah relatif terhadap potongan terbaik — angka 0,042
+tidak berarti apa pun bagi pembaca sampai ia tahu rentangnya.
+</p>
+<p>
+Berkas yang diunggah menempel sebagai kartu di atas kolom pertanyaan, dan
+pengguna bebas bertanya apa saja di bawahnya. Riwayat percakapan tersimpan
+dan dapat dibuka kembali.
+</p>
+
+<div class="pindah"></div>
+
+<h2>7. Keamanan</h2>
+<p>
+Keamanan dirancang berlapis dan ditegakkan pada tingkat sistem, bukan hanya
+pada antarmuka. Seluruh lapisan berikut diverifikasi terhadap sistem yang
+berjalan.
+</p>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th>Risiko</th><th>Penanganan</th><th>Hasil verifikasi</th></tr>
+<tr><td>Perubahan data lewat SQL Tool</td>
+    <td>user PostgreSQL read-only terpisah, allowlist tabel, validasi kata kunci</td>
+    <td><code>DELETE FROM pegawai</code> ditolak validasi <b>dan</b> oleh PostgreSQL; 12 baris tetap 12</td></tr>
+<tr><td>Prompt injection dari isi dokumen</td>
+    <td>potongan yang memuat pola pengambilalihan peran dikarantina sebelum masuk konteks</td>
+    <td>hasil tool diperlakukan sebagai data, bukan perintah</td></tr>
+<tr><td>Kebocoran system prompt</td>
+    <td>larangan eksplisit, ditambah pendeteksi kutipan berbasis <i>shingle</i> 8 kata</td>
+    <td><b>0 dari 3</b> percobaan berhasil, termasuk yang mengaku sebagai pengembang</td></tr>
+<tr><td>Berkas unggahan berbahaya</td>
+    <td>allowlist ekstensi, pemeriksaan <i>magic number</i>, batas ukuran, nama diganti UUID</td>
+    <td>berkas <code>.exe</code> ditolak sebelum menyentuh disk</td></tr>
+<tr><td>Akses tanpa wewenang</td>
+    <td>JWT dengan tiga peran: ADMIN, USER, READ_ONLY</td>
+    <td>READ_ONLY: bertanya 200, menambah dokumen <b>403</b>, mengelola akun <b>403</b></td></tr>
+<tr><td>Kebocoran data ke luar</td>
+    <td>seluruh model berjalan lokal; jalur ke API pihak ketiga dihapus (D-17)</td>
+    <td>tidak ada kredensial API pada konfigurasi maupun kode</td></tr>
+</table>
+<p>
+Keputusan D-17 layak disebut tersendiri. Sistem sempat memiliki lapisan
+provider yang dapat dialihkan ke API luar. Lapisan itu <b>dihapus</b>, bukan
+sekadar dinonaktifkan: selama ia ada, isi dokumen dapat dikirim keluar hanya
+dengan mengubah satu baris berkas konfigurasi, tanpa jejak apa pun di kode.
+</p>
+
+<h2>8. Pengujian</h2>
+
+<h3>8.1 Strategi dua lapis</h3>
+<p>
+Pengujian dipisah menurut sifat yang diuji, karena keduanya memerlukan
+perlakuan berbeda.
+</p>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th>Lapis</th><th>Jumlah</th><th>Sifat</th><th>Yang diperiksa</th></tr>
+<tr><td>Test otomatis (<code>pytest</code>)</td><td>194</td><td>deterministik, memakai tiruan</td>
+    <td>kontrak HTTP, validasi, otorisasi, logika pemotongan, penggabungan hybrid, alur keputusan Agent</td></tr>
+<tr><td>Matriks uji PRD §17</td><td>7 kasus</td><td>terhadap sistem hidup, diulang</td>
+    <td>perutean tool, ketepatan jawaban, penolakan serangan</td></tr>
+</table>
+<p>
+Pemisahan ini disengaja. Jawaban model tidak deterministik, sehingga menguji
+mutu jawaban dengan <code>pytest</code> akan menghasilkan test yang kadang
+lulus kadang gagal tanpa ada yang berubah. Sebaliknya, kontrak HTTP dan
+otorisasi harus lulus setiap kali — dan itu tidak boleh bergantung pada
+model.
+</p>
+
+<h3>8.2 Hasil matriks uji</h3>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th>Kode</th><th>Yang diuji</th><th>Hasil</th></tr>
+<tr><td>RAG-001</td><td>jawaban dari dokumen terindeks</td><td>lulus</td></tr>
+<tr><td>OCR-001</td><td>pembacaan teks dari gambar</td><td>lulus</td></tr>
+<tr><td>SQL-001</td><td>penyusunan query oleh model</td><td>tidak stabil — lihat §10</td></tr>
+<tr><td>AGENT-001</td><td>pemilihan tool yang tepat</td><td>lulus</td></tr>
+<tr><td>AGENT-002</td><td>pertanyaan tanpa tool</td><td>lulus</td></tr>
+<tr><td>SEC-001</td><td>penolakan kebocoran system prompt</td><td>lulus</td></tr>
+<tr><td>SEC-002</td><td>penolakan perintah SQL yang mengubah data</td><td>lulus</td></tr>
+</table>
+
+<h3>8.3 Contoh pengukuran sebelum dan sesudah</h3>
+<p>
+Pada beberapa perbaikan, keberhasilannya diukur dengan mengulang kasus yang
+sama beberapa kali sebelum dan sesudah perubahan. Dua di antaranya:
+</p>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th>Perbaikan</th><th>Sebelum</th><th>Sesudah</th></tr>
+<tr><td>B-31 — pertanyaan tentang gambar dijawab "tidak ada di dokumen"</td>
+    <td>0/5 benar</td><td>5/5 benar</td></tr>
+<tr><td>B-32 — jawaban gagal ditiru dari riwayat percakapan</td>
+    <td>gagal pada riwayat berisi 3 penolakan</td><td>4/4 benar pada riwayat yang sama</td></tr>
+</table>
+<p>
+Cara ini penting: pada percobaan tunggal, B-31 sempat <i>berhasil</i> secara
+kebetulan. Bila pengujian berhenti di situ, bug-nya akan dinyatakan tidak
+dapat direproduksi dan tetap ada.
+</p>
+
+<div class="pindah"></div>
+
+<h2>9. Rekayasa Kualitas: catatan keputusan dan catatan bug</h2>
+<p>
+Dua catatan dipelihara sepanjang pengerjaan dan merupakan bagian dari hasil
+kerja, bukan pelengkap.
+</p>
+
+<h3>9.1 Catatan keputusan (18 entri)</h3>
+<p>
+Setiap keputusan arsitektur dicatat beserta <b>masalah yang dihadapi,
+pilihan yang diambil, dan konsekuensinya</b>. Beberapa keputusan kemudian
+direvisi keputusan berikutnya, dan revisi itu dicatat pula — sehingga alasan
+di balik keadaan sekarang tetap dapat ditelusuri.
+</p>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th>Contoh</th><th>Isi</th></tr>
+<tr><td>D-03</td><td>Ollama di host, bukan container, demi akses GPU langsung</td></tr>
+<tr><td>D-10</td><td>ambang relevansi ditetapkan relatif, bukan angka mati, karena tiap model embedding punya rentang skor sendiri</td></tr>
+<tr><td>D-14</td><td>model LLM diganti setelah pengujian; llama3.2 menulis pemanggilan tool sebagai JSON rusak</td></tr>
+<tr><td>D-16</td><td>hybrid search dengan bobot dari pengukuran</td></tr>
+<tr><td>D-17</td><td>penghapusan jalur ke API luar</td></tr>
+</table>
+
+<h3>9.2 Catatan bug (32 entri)</h3>
+<p>
+Tiap bug dicatat dengan <b>gejala, sebab, perbaikan, dan mengapa ia lolos
+dari pengujian yang ada</b>. Bagian terakhir itu yang paling sering
+menghasilkan perbaikan pada cara menguji, bukan hanya pada kode.
+</p>
+<p>Tiga contoh yang mewakili:</p>
+<ul>
+<li><b>B-28</b> — pertanyaan yang memuat kata "pdf" dijawab kosong. Bukan bug
+    kode: model menghasilkan satu token lalu berhenti, dan hanya bila daftar
+    tool ikut dikirim. Ditemukan dengan mengganti satu kata pada pertanyaan
+    yang sama.</li>
+<li><b>B-30</b> — gambar tanpa tulisan dilaporkan "gagal membaca". Sebabnya
+    <code>a or b</code> pada <code>numpy.ndarray</code> melempar ValueError
+    alih-alih menghasilkan False. Lolos dari 160 test karena tiruan pada test
+    hanya memakai <i>list</i>, tidak pernah <i>array</i> — bentuk data yang
+    bermasalah tidak pernah diuji.</li>
+<li><b>B-32</b> — jawaban gagal tersimpan di riwayat lalu ditiru pada giliran
+    berikutnya, sehingga kegagalannya berputar menguatkan diri sendiri.</li>
+</ul>
+
+<h2>10. Keterbatasan yang Diketahui</h2>
+<p>
+Keterbatasan berikut dicatat apa adanya karena menyembunyikannya akan
+menyesatkan penilaian atas sistem ini.
+</p>
+<ul>
+<li><b>Alur multi-tool dalam satu giliran belum andal.</b> Bila langkahnya
+    disebut eksplisit ("cek dokumen untuk X, lalu cek database untuk Y"),
+    berhasil 3 dari 3. Bila hanya dirangkai dengan kata "dan", gagal 0 dari
+    3. Ini ketergantungan pada susunan kalimat, bukan ketidakmampuan.</li>
+<li><b>SQL-001 tidak stabil.</b> Penyusunan query oleh model 3B belum
+    konsisten. Batasnya pada kapasitas model, bukan pada lapisan pencarian.</li>
+<li><b>Model 3B dipilih karena batas VRAM.</b> Naik ke qwen2.5:7b (4,68 GB)
+    cukup mengubah satu baris konfigurasi dan diperkirakan memperbaiki dua
+    butir di atas, tetapi belum diukur.</li>
+<li><b>Dokumen pengetahuan belum diverifikasi.</b> Dokumen contoh yang
+    dimuat ke basis pengetahuan sengaja tidak memuat angka statistik; tiap
+    tempat yang seharusnya berisi angka ditandai agar asisten menjawab
+    "belum ada di dokumen" alih-alih mengarang.</li>
+</ul>
+
+<h2>11. Pengoperasian</h2>
+<p>
+Basis data dan backend berjalan sebagai container; Ollama berjalan di host
+agar mendapat akses GPU langsung. Satu skrip menyalakan seluruhnya dengan
+urutan yang benar:
+</p>
+<pre>
+./jalankan.sh              # basis data, backend, Ollama, antarmuka
+./jalankan.sh --tanpa-ui   # tanpa antarmuka
+</pre>
+<p>
+Urutannya tidak boleh dibalik: Ollama diikat ke alamat gateway jaringan
+Docker Compose, dan alamat itu baru ada setelah container dinyalakan.
+Skripnya menunggu alamat tersebut muncul lebih dulu.
+</p>
+
+<div class="pindah"></div>
+
+<h2>12. Pemetaan Kompetensi</h2>
+<p>
+Tabel berikut memetakan bagian pekerjaan pada laporan ini terhadap area
+kompetensi yang lazim diujikan. <b>Kolom kode unit sengaja dikosongkan</b>
+untuk diisi sesuai skema sertifikasi yang ditempuh — mencantumkan kode unit
+yang tidak diverifikasi pada dokumen asesmen berisiko keliru dan lebih baik
+dihindari.
+</p>
+<table width="100%" border="1" cellspacing="0" cellpadding="5">
+<tr><th style="width:3.2cm">Kode unit</th><th>Area kompetensi</th><th>Bukti pada laporan ini</th></tr>
+<tr><td>&nbsp;</td><td>Menganalisis kebutuhan dan menetapkan ruang lingkup</td><td>§2 Latar Belakang dan Tujuan; spesifikasi <code>prd.md</code></td></tr>
+<tr><td>&nbsp;</td><td>Merancang arsitektur perangkat lunak</td><td>§3 Arsitektur; 18 catatan keputusan beserta konsekuensinya</td></tr>
+<tr><td>&nbsp;</td><td>Merancang basis data</td><td>§5 Rancangan Basis Data; pemilihan indeks HNSW dan GIN</td></tr>
+<tr><td>&nbsp;</td><td>Membangun antarmuka pemrograman aplikasi</td><td>§6; 14 endpoint REST dengan validasi skema</td></tr>
+<tr><td>&nbsp;</td><td>Menerapkan pemrosesan bahasa alami / model AI</td><td>§6.1 pipeline RAG; §6.2 Agent dan tool calling</td></tr>
+<tr><td>&nbsp;</td><td>Mengolah data tidak terstruktur</td><td>ekstraksi PDF dengan tata letak, OCR gambar, pemotongan teks</td></tr>
+<tr><td>&nbsp;</td><td>Membangun antarmuka pengguna</td><td>§6.3; pengujian di peramban pada lebar 1280px dan 420px</td></tr>
+<tr><td>&nbsp;</td><td>Menerapkan keamanan perangkat lunak</td><td>§7; enam lapis, seluruhnya diverifikasi</td></tr>
+<tr><td>&nbsp;</td><td>Melaksanakan pengujian perangkat lunak</td><td>§8; 194 test otomatis dan matriks uji fungsional</td></tr>
+<tr><td>&nbsp;</td><td>Melakukan penelusuran dan perbaikan kesalahan</td><td>§9.2; 32 bug dengan sebab, perbaikan, dan pengukuran</td></tr>
+<tr><td>&nbsp;</td><td>Mengelola konfigurasi dan penerapan</td><td>§11; Docker Compose, skrip operasional, 35 commit</td></tr>
+<tr><td>&nbsp;</td><td>Menyusun dokumentasi teknis</td><td>4.376 baris dokumentasi: spesifikasi, keputusan, bug, panduan</td></tr>
+</table>
+
+<h2>13. Penutup</h2>
+<p>
+Sistem yang dilaporkan telah berjalan dan diuji terhadap keadaan
+sesungguhnya, bukan hanya pada lingkungan pengujian. Nilai utamanya bukan
+pada kebaruan masing-masing komponen — RAG, OCR, dan tool calling semuanya
+teknik yang sudah mapan — melainkan pada penyatuannya menjadi satu sistem
+yang berjalan lokal, dapat ditelusuri jawabannya, dan pembatasan aksesnya
+ditegakkan sampai ke tingkat basis data.
+</p>
+<p>
+Hal yang paling banyak menentukan mutu hasil selama pengerjaan adalah
+kebiasaan <b>mengukur sebelum dan sesudah</b> tiap perbaikan, serta mencatat
+alasan setiap keputusan. Beberapa perbaikan yang tampak berhasil pada satu
+percobaan terbukti gagal ketika diulang, dan tanpa pengulangan itu keduanya
+akan dinyatakan selesai padahal belum.
+</p>
+
+<p class="kaki">
+Laporan ini disusun berdasarkan keadaan repositori pada 23 September 2026.
+Seluruh angka dapat diperiksa ulang dengan menjalankan pengujian pada
+repositori yang sama.
+</p>
+
+</body>
+</html>

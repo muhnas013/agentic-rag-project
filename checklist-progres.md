@@ -1811,6 +1811,38 @@ menangkapnya justru peringatan lint tentang impor yang tidak terpakai.
 
 Tidak ada galat konsol. Peringatan lint tetap 2. Build produksi lolos.
 
+### Laporan proyek untuk asesmen BNSP · selesai (23 Sep 2026)
+
+Diminta pengguna. Laporan 13 halaman, `laporan/laporan-proyek-agentic-rag.pdf`,
+sumber HTML-nya di `dokumen-pengetahuan/sumber/`.
+
+**Seluruh angka diambil dari repo dan sistem berjalan, bukan ingatan:**
+194 test, 14 endpoint, 18 keputusan, 32 bug, 5.742 baris backend, 2.110
+frontend, 4.376 dokumentasi, 35 commit. Diverifikasi ulang sebelum ditulis.
+
+**Keterbatasan ikut dilaporkan**, bukan disembunyikan: alur multi-tool yang
+bergantung pada susunan kalimat (3/3 bila langkahnya eksplisit, 0/3 bila
+hanya dirangkai "dan"), SQL-001 yang tidak stabil, dan matriks PRD §17 yang
+6/7 pada keadaan biasa — bukan 7/7 seperti pada putaran yang dipanaskan.
+Laporan yang menyembunyikan ini akan runtuh pada pertanyaan asesor pertama.
+
+**Kode unit kompetensi sengaja dikosongkan.** Skema sertifikasinya belum
+disebutkan, dan mencantumkan kode SKKNI yang tidak diverifikasi pada
+dokumen asesmen berisiko keliru. Yang disediakan tabel pemetaan area
+kompetensi ke bagian laporan, dengan kolom kode siap diisi.
+
+**Dua masalah render ditemukan dan diperbaiki**, keduanya karena dukungan
+CSS LibreOffice terbatas:
+
+1. Garis tabel hilang — `border` dari CSS diabaikan, harus lewat atribut
+   HTML. Begitu pula `width: 100%`.
+2. Diagram arsitektur ASCII merenggang sampai kotaknya pecah, karena
+   `line-height` pada `pre` tidak diterapkan. Diganti tabel berlapis —
+   lebih andal, dan untuk laporan formal justru lebih terbaca.
+
+Keduanya baru ketahuan karena hasilnya dirender jadi gambar dan diperiksa,
+bukan hanya dinyatakan "PDF berhasil dibuat".
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

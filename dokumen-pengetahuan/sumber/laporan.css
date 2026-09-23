@@ -1,0 +1,37 @@
+@page { size: A4; margin: 2.3cm 2.2cm; }
+body { font-family: "Liberation Serif", serif; font-size: 11pt; line-height: 1.45; }
+
+.sampul { text-align: center; margin-top: 5.5cm; }
+.sampul .jenis { font-size: 10.5pt; letter-spacing: 2pt; text-transform: uppercase; color: #555; }
+.sampul h1 { font-size: 22pt; margin: 10pt 0 4pt 0; line-height: 1.25; }
+.sampul .anak { font-size: 13pt; color: #333; margin: 0 0 22pt 0; }
+.sampul .meta { font-size: 11pt; line-height: 1.8; margin-top: 26pt; }
+.sampul .meta b { display: inline-block; min-width: 4.6cm; text-align: right; padding-right: 10pt; }
+.pindah { page-break-before: always; }
+
+h2 { font-size: 14pt; margin: 20pt 0 6pt 0; border-bottom: 1px solid #bbb; padding-bottom: 3pt; }
+h3 { font-size: 11.5pt; margin: 13pt 0 4pt 0; }
+p { margin: 0 0 7pt 0; text-align: justify; }
+ul, ol { margin: 0 0 8pt 0; }
+li { margin-bottom: 3pt; }
+
+table { border-collapse: collapse; width: 100%; margin: 6pt 0 10pt 0; font-size: 10pt; }
+th, td { border: 1px solid #aaa; padding: 4pt 6pt; text-align: left; vertical-align: top; }
+th { background: #eee; font-weight: bold; }
+td.n { text-align: right; white-space: nowrap; }
+
+pre { font-family: "Liberation Mono", monospace; font-size: 8.8pt; line-height: 1.32;
+      border: 1px solid #bbb; background: #f6f6f6; padding: 7pt 9pt; margin: 6pt 0 10pt 0;
+      white-space: pre; }
+code { font-family: "Liberation Mono", monospace; font-size: 9.5pt; }
+
+.catatan { font-size: 10pt; border-left: 3px solid #777; background: #f4f4f4;
+           padding: 7pt 10pt; margin: 8pt 0 11pt 0; }
+.kaki { font-size: 9.5pt; color: #444; font-style: italic; }
+
+/* Diagram arsitektur: baris panah dibuat rapat agar alurnya terbaca
+   sebagai penghubung, bukan sebagai kotak tersendiri. */
+table.diagram td { padding: 5pt 6pt; }
+table.diagram td.panah { border-left: none; border-right: none; padding: 2pt;
+                         font-size: 9pt; color: #555; }
+.kecil { font-size: 9pt; color: #444; }

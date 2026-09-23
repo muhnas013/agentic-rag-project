@@ -28,7 +28,6 @@ import io
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
-from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -381,31 +380,7 @@ async def add_text_document(
 
 
 def _gambar_terunggah() -> list[DocumentSummary]:
-    """Gambar yang tersimpan di folder unggahan.
-
-    Berkas disimpan sebagai `<uuid>__<nama-asli>` (keputusan D-12); yang
-    ditampilkan adalah bagian setelah `__`, karena nama itulah yang diketik
-    pengguna dan yang dikenali `Image_OCR`. Berkas lama dari sebelum D-12
-    tidak punya bagian itu, jadi namanya dipakai apa adanya.
-
-    Satu nama yang diunggah berkali-kali muncul sekali saja, memakai waktu
-    unggahan terbarunya — sama seperti dokumen yang dikelompokkan per nama.
-    """
-    dasar = Path(settings.upload_dir)
-    if not dasar.is_dir():
-        return []
-
-    terbaru: dict[str, float] = {}
-    for berkas in dasar.iterdir():
-        if not berkas.is_file():
-            continue
-        if berkas.suffix.lower() not in settings.allowed_image_extensions:
-            continue
-        nama = berkas.name.split("__", 1)[1] if "__" in berkas.name else berkas.name
-        waktu = berkas.stat().st_mtime
-        if waktu > terbaru.get(nama, 0.0):
-            terbaru[nama] = waktu
-
+    """Gambar terunggah dalam bentuk yang sama dengan dokumen terindeks."""
     return [
         DocumentSummary(
             filename=nama,
@@ -413,7 +388,7 @@ def _gambar_terunggah() -> list[DocumentSummary]:
             created_at=datetime.fromtimestamp(waktu),
             jenis="gambar",
         )
-        for nama, waktu in terbaru.items()
+        for nama, waktu in document_service.gambar_terunggah()
     ]
 
 

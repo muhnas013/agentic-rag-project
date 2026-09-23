@@ -215,6 +215,42 @@ _POLA_TERKOMPILASI = tuple(
 )
 
 
+def gambar_terunggah(batas: int | None = None) -> list[tuple[str, float]]:
+    """Gambar di folder unggahan: (nama asli, waktu unggah), terbaru dulu.
+
+    Gambar tidak pernah masuk tabel `documents` — `POST /upload` hanya
+    menyimpannya ke disk, dan teksnya baru dibaca ketika `Image_OCR`
+    dipanggil. Jadi daftar ini satu-satunya cara mengetahui gambar apa saja
+    yang pernah diunggah, dan dipakai dua tempat: `GET /documents` untuk
+    ditampilkan, dan system prompt Agent supaya model tahu gambar itu ada.
+
+    Berkas disimpan sebagai `<uuid>__<nama-asli>` (keputusan D-12); yang
+    dikembalikan bagian setelah `__`, karena nama itulah yang diketik
+    pengguna dan yang dikenali `Image_OCR`. Berkas lama dari sebelum D-12
+    tidak punya bagian itu, jadi namanya dipakai apa adanya.
+
+    Satu nama yang diunggah berkali-kali muncul sekali saja, memakai waktu
+    unggahan terbarunya — sama seperti dokumen yang dikelompokkan per nama.
+    """
+    dasar = Path(settings.upload_dir)
+    if not dasar.is_dir():
+        return []
+
+    terbaru: dict[str, float] = {}
+    for berkas in dasar.iterdir():
+        if not berkas.is_file():
+            continue
+        if berkas.suffix.lower() not in settings.allowed_image_extensions:
+            continue
+        nama = berkas.name.split("__", 1)[1] if "__" in berkas.name else berkas.name
+        waktu = berkas.stat().st_mtime
+        if waktu > terbaru.get(nama, 0.0):
+            terbaru[nama] = waktu
+
+    urut = sorted(terbaru.items(), key=lambda x: x[1], reverse=True)
+    return urut[:batas] if batas else urut
+
+
 def detect_injection(text: str) -> list[str]:
     """Kembalikan label pola pengambilalihan yang ditemukan di teks.
 

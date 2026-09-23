@@ -432,3 +432,86 @@ class TestPenyaringanModelEmbedding:
 
         assert not _model_embedding("qwen2.5:3b-instruct-q4_K_M", "qwen2")
         assert not _model_embedding("llama3.2:3b", "llama")
+
+
+class TestGambarDisebutKeAgent:
+    """Model harus diberi tahu gambar apa saja yang ada (B-31).
+
+    Gambar tidak pernah masuk tabel `documents`, sehingga tanpa daftar ini
+    model tidak tahu berkasnya ada. Yang terjadi kemudian bukan model
+    bertanya balik, melainkan menjawab dari pencarian dokumen lalu
+    menyimpulkan "tidak ditemukan dalam dokumen" — padahal gambarnya ada
+    dan terbaca sempurna oleh OCR.
+    """
+
+    @pytest.fixture
+    def folder(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(settings, "upload_dir", tmp_path)
+        return tmp_path
+
+    def _buat(self, folder, nama, umur_detik=0):
+        import os
+        import time
+
+        berkas = folder / nama
+        berkas.write_bytes(b"\x89PNG\r\n\x1a\n")
+        if umur_detik:
+            lampau = time.time() - umur_detik
+            os.utime(berkas, (lampau, lampau))
+        return berkas
+
+    def test_gambar_terbaru_disebut_lebih_dulu(self, folder):
+        from backend.services.document_service import gambar_terunggah
+
+        self._buat(folder, "aaa__lama.png", umur_detik=600)
+        self._buat(folder, "bbb__baru.png")
+
+        nama = [n for n, _ in gambar_terunggah()]
+        assert nama[0] == "baru.png", "yang terbaru harus di urutan pertama"
+        assert "lama.png" in nama
+
+    def test_batas_jumlah_dihormati(self, folder):
+        from backend.services.document_service import gambar_terunggah
+
+        for i in range(5):
+            self._buat(folder, f"x{i}__g{i}.png", umur_detik=i * 60)
+        assert len(gambar_terunggah(batas=2)) == 2
+
+    def test_nama_gambar_masuk_system_prompt(self, folder, client):
+        from backend.agent import daftar_dokumen
+
+        self._buat(folder, "abc123__ktp.jpg")
+        teks = daftar_dokumen()
+        assert "ktp.jpg" in teks
+        assert "abc123__ktp.jpg" not in teks, "yang disebut harus nama aslinya"
+
+    def test_prompt_mengarahkan_gambar_ke_ocr_bukan_rag(self, folder, client):
+        """Inti perbaikannya: pertanyaan tentang gambar tidak boleh
+        dialihkan ke RAG_Search, karena isi gambar memang tidak ada di sana."""
+        from backend.agent import daftar_dokumen
+
+        self._buat(folder, "abc123__ktp.jpg")
+        teks = daftar_dokumen()
+        assert "Image_OCR" in teks
+        assert "TIDAK ada di dalam dokumen" in teks
+
+    def test_rujukan_tanpa_nama_diarahkan_ke_gambar_terbaru(self, folder, client):
+        """"foto tersebut" harus punya rujukan, seperti "dokumen tadi" pada B-29."""
+        from backend.agent import daftar_dokumen
+
+        self._buat(folder, "aaa__lama.png", umur_detik=600)
+        self._buat(folder, "bbb__terbaru.png")
+
+        teks = daftar_dokumen()
+        assert "foto tersebut" in teks
+        # Nama yang disarankan harus yang terbaru, bukan sembarang gambar.
+        potongan = teks[teks.index("foto tersebut"):]
+        assert "terbaru.png" in potongan
+
+    def test_tanpa_berkas_apa_pun_tidak_meledak(self, folder, client, monkeypatch):
+        from backend.agent import daftar_dokumen
+
+        # Tabel dokumen dikosongkan supaya cabang "belum ada apa-apa" teruji.
+        monkeypatch.setattr("backend.agent.MAKS_DOKUMEN_DISEBUT", 0)
+        teks = daftar_dokumen()
+        assert "Belum ada" in teks

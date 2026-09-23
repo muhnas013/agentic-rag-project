@@ -1641,6 +1641,44 @@ diverifikasi — daftar kecamatan, latar sejarah, nama air terjun, rincian
 adat — dan cara mengganti penanda dengan angka resmi beserta tahun dan
 sumbernya.
 
+### Laporan pengguna: isi foto KTP tidak terbaca · 23 Sep 2026
+
+Dilaporkan: unggah foto KTP `unnamed.jpg`, aplikasi tidak bisa membaca
+isinya.
+
+**Dugaan awal salah.** OCR-nya justru bekerja sempurna: 15 baris, keyakinan
+minimum 0,95, dan pemanggilan langsung `Image_OCR` mengembalikan 470
+karakter teks KTP yang rapi. Yang gagal terjadi sesudahnya.
+
+Riwayat percakapan pengguna yang membuka polanya:
+
+| Pertanyaan | Hasil |
+|---|---|
+| "Apa **isi** gambar unnamed.jpg?" | berhasil |
+| "sebutkan dari data foto tersebut **namanya siapa**" | gagal |
+| "**siapa nama** dari data gambar unnamed.jpg?" | gagal |
+
+Kata "**dokumen**" pada jawaban gagalnya — "tidak ditemukan dalam dokumen
+yang tersedia" — yang akhirnya menunjuk penyebabnya.
+
+**B-31.** `daftar_dokumen()` menyusun daftar berkas untuk system prompt dari
+tabel `documents`, dan gambar tidak pernah masuk tabel itu. Model tidak
+pernah tahu gambarnya ada, jadi "foto tersebut" tidak punya rujukan dan ia
+jatuh ke pencarian dokumen. **Ini B-29 yang setengah selesai** — persoalan
+identik sudah diperbaiki untuk dokumen, tetapi gambar tidak ikut karena
+sumber daftarnya memang tabel itu.
+
+**Diukur, bukan dikira.** Pertanyaan yang sama diulang lima kali sebelum dan
+sesudah perbaikan: **0/5 → 5/5**, dari `tool=none` menjadi `tool=Image_OCR`
+seluruhnya.
+
+Pendataan gambar dipindahkan ke `document_service.gambar_terunggah()`,
+dipakai bersama `GET /documents` dan system prompt — satu sumber, tidak ada
+dua salinan yang bisa berbeda. Enam test regresi ditambahkan; lima di
+antaranya dibuktikan gagal pada kode lama.
+
+Jumlah test: 179 -> 185, semuanya lulus.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

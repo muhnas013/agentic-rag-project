@@ -375,3 +375,43 @@ terbukti gagal pada kode lama dan lulus pada kode baru.
 
 **Hasil.** Gambar mobil itu kini dijawab "Tidak ada teks yang terbaca pada
 gambar itu", dan struk uji tetap terbaca lengkap.
+
+### B-31 ✅ Pertanyaan tentang gambar dijawab "tidak ditemukan dalam dokumen"
+**Gejala.** Dilaporkan pengguna: mengunggah foto KTP `unnamed.jpg`, lalu
+bertanya "bisa anda sebutkan dari data foto tersebut namanya siapa" —
+dijawab "Maaf, saya tidak memiliki data tentang foto yang diunggah."
+
+**Yang menyesatkan:** "Apa isi gambar unnamed.jpg?" justru **berhasil**.
+Yang gagal hanya pertanyaan lanjutan yang menanyakan satu keterangan saja.
+
+**Bukan OCR-nya.** Log memperlihatkan pembacaan berhasil — 15 baris,
+keyakinan minimum 0,95 — dan pemanggilan langsung `Image_OCR` mengembalikan
+470 karakter teks KTP yang rapi. Yang gagal terjadi **setelah** itu:
+`tool_used` bernilai `none`, jadi OCR tidak pernah dipanggil sama sekali.
+
+**Sebab.** `daftar_dokumen()` menyusun daftar berkas untuk system prompt
+dari tabel `documents` — dan **gambar tidak pernah masuk tabel itu**.
+`POST /upload` hanya menyimpan gambar ke disk; teksnya baru dibaca ketika
+`Image_OCR` dipanggil. Akibatnya model tidak pernah diberi tahu gambar itu
+ada, sehingga "foto tersebut" tidak punya rujukan apa pun.
+
+Yang terjadi kemudian bukan model bertanya balik, melainkan ia jatuh ke
+pengetahuan dokumen dan menyimpulkan tidak menemukan apa-apa — perhatikan
+kata "**dokumen**" pada jawabannya: "tidak ditemukan dalam dokumen yang
+tersedia". Petunjuk itu yang akhirnya menunjuk penyebabnya.
+
+**Ini B-29 yang setengah selesai.** B-29 memperbaiki persoalan yang sama
+persis untuk dokumen — "pdf tersebut" tidak punya rujukan — dengan
+menyisipkan daftar dokumen ke system prompt. Gambar tidak pernah ikut
+diperbaiki, karena sumber daftarnya tabel `documents`.
+
+**Terukur, bukan terkira.** Sebelum perbaikan, pertanyaan itu diulang lima
+kali: **0/5 benar**, `tool=none` kelimanya. Sesudah perbaikan: **5/5 benar**,
+`tool=Image_OCR` kelimanya.
+
+**Perbaikan.** Pendataan gambar dipindahkan ke
+`document_service.gambar_terunggah()` — dipakai bersama oleh `GET /documents`
+dan system prompt, jadi tidak ada dua salinan yang bisa berbeda. System
+prompt kini menyebut gambar yang ada, menegaskan isinya **tidak** dapat
+dicari dengan RAG_Search, dan mengarahkan "foto tersebut" ke gambar
+terbaru — persis pola yang dipakai B-29 untuk dokumen.

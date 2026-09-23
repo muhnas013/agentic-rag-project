@@ -207,18 +207,50 @@ def daftar_dokumen() -> str:
     finally:
         db.close()
 
-    if not baris:
-        return "\n\nBelum ada dokumen yang terindeks."
-
     nama = [n for n, _ in baris]
-    return (
-        "\n\nDokumen yang tersedia, dari yang paling baru diunggah:\n"
-        + "\n".join(f"- {n}" for n in nama)
-        + "\n\nBila pengguna menyebut \"dokumen tadi\", \"file yang saya kirim\", atau "
-        f"\"pdf tersebut\" tanpa nama, yang dimaksud hampir selalu {nama[0]}. "
-        "Isi argumen `filename` pada RAG_Search dengan nama berkas itu agar "
-        "pencarian tidak melebar ke dokumen lain."
-    )
+
+    # Gambar tidak pernah masuk tabel `documents`, sehingga tanpa bagian ini
+    # model sama sekali tidak tahu gambar yang baru diunggah itu ada. Yang
+    # terjadi kemudian bukan model bertanya balik, melainkan ia menjawab dari
+    # pencarian dokumen dan menyimpulkan "tidak ditemukan dalam dokumen" —
+    # padahal berkasnya ada dan terbaca sempurna oleh OCR. Lihat B-31.
+    from backend.services.document_service import gambar_terunggah
+
+    try:
+        gambar = [n for n, _ in gambar_terunggah(batas=MAKS_DOKUMEN_DISEBUT)]
+    except Exception as exc:  # daftar yang gagal dimuat tidak boleh menggagalkan jawaban
+        logger.warning("Daftar gambar gagal dimuat: %s", exc)
+        gambar = []
+
+    if not nama and not gambar:
+        return "\n\nBelum ada dokumen maupun gambar yang diunggah."
+
+    bagian = []
+
+    if nama:
+        bagian.append(
+            "Dokumen yang tersedia, dari yang paling baru diunggah:\n"
+            + "\n".join(f"- {n}" for n in nama)
+            + "\n\nBila pengguna menyebut \"dokumen tadi\", \"file yang saya kirim\", "
+            f"atau \"pdf tersebut\" tanpa nama, yang dimaksud hampir selalu {nama[0]}. "
+            "Isi argumen `filename` pada RAG_Search dengan nama berkas itu agar "
+            "pencarian tidak melebar ke dokumen lain."
+        )
+
+    if gambar:
+        bagian.append(
+            "Gambar yang sudah diunggah, dari yang paling baru:\n"
+            + "\n".join(f"- {n}" for n in gambar)
+            + "\n\nIsi gambar TIDAK ada di dalam dokumen dan tidak bisa dicari "
+            "dengan RAG_Search. Untuk pertanyaan apa pun tentang gambar — "
+            "termasuk menanyakan satu keterangan saja seperti nama, nomor, "
+            "tanggal, atau jumlah — panggil Image_OCR dengan nama berkasnya, "
+            "lalu jawab dari teks yang dikembalikannya. Bila pengguna menyebut "
+            "\"foto tersebut\", \"gambar tadi\", atau \"fotonya\" tanpa nama, "
+            f"yang dimaksud hampir selalu {gambar[0]}."
+        )
+
+    return "\n\n" + "\n\n".join(bagian)
 
 
 def build_agent(temperature: float = 0.2, model: str | None = None):

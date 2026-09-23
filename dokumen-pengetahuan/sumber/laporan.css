@@ -31,7 +31,15 @@ code { font-family: "Liberation Mono", monospace; font-size: 9.5pt; }
 
 /* Diagram arsitektur: baris panah dibuat rapat agar alurnya terbaca
    sebagai penghubung, bukan sebagai kotak tersendiri. */
-table.diagram td { padding: 5pt 6pt; }
+table.diagram td { padding: 5pt 6pt; text-align: center; }
 table.diagram td.panah { border-left: none; border-right: none; padding: 2pt;
                          font-size: 9pt; color: #555; }
 .kecil { font-size: 9pt; color: #444; }
+
+/* Tangkapan layar: diberi bingkai tipis agar tepi tampilan gelap tidak
+   menyatu dengan latar halaman yang putih. */
+img { border: 1px solid #999; width: 88%; height: auto; display: block; margin: 0 auto; }
+/* Tangkapan layar sempit tidak perlu selebar halaman. */
+img.sempit { width: 8.5cm; }
+/* Gambar dan keterangannya jangan terpisah antar halaman. */
+figure, .gambar { break-inside: avoid; page-break-inside: avoid; margin-bottom: 14pt; }

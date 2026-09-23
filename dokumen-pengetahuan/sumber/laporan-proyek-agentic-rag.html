@@ -413,15 +413,79 @@ dihindari.
 <tr><td>&nbsp;</td><td>Membangun antarmuka pemrograman aplikasi</td><td>§6; 14 endpoint REST dengan validasi skema</td></tr>
 <tr><td>&nbsp;</td><td>Menerapkan pemrosesan bahasa alami / model AI</td><td>§6.1 pipeline RAG; §6.2 Agent dan tool calling</td></tr>
 <tr><td>&nbsp;</td><td>Mengolah data tidak terstruktur</td><td>ekstraksi PDF dengan tata letak, OCR gambar, pemotongan teks</td></tr>
-<tr><td>&nbsp;</td><td>Membangun antarmuka pengguna</td><td>§6.3; pengujian di peramban pada lebar 1280px dan 420px</td></tr>
-<tr><td>&nbsp;</td><td>Menerapkan keamanan perangkat lunak</td><td>§7; enam lapis, seluruhnya diverifikasi</td></tr>
+<tr><td>&nbsp;</td><td>Membangun antarmuka pengguna</td><td>§6.3 dan Lampiran §13 (Gambar 1–9); diuji pada lebar 1280px dan 420px</td></tr>
+<tr><td>&nbsp;</td><td>Menerapkan keamanan perangkat lunak</td><td>§7; enam lapis, seluruhnya diverifikasi — bukti visual pada Gambar 8</td></tr>
 <tr><td>&nbsp;</td><td>Melaksanakan pengujian perangkat lunak</td><td>§8; 194 test otomatis dan matriks uji fungsional</td></tr>
 <tr><td>&nbsp;</td><td>Melakukan penelusuran dan perbaikan kesalahan</td><td>§9.2; 32 bug dengan sebab, perbaikan, dan pengukuran</td></tr>
 <tr><td>&nbsp;</td><td>Mengelola konfigurasi dan penerapan</td><td>§11; Docker Compose, skrip operasional, 35 commit</td></tr>
 <tr><td>&nbsp;</td><td>Menyusun dokumentasi teknis</td><td>4.376 baris dokumentasi: spesifikasi, keputusan, bug, panduan</td></tr>
 </table>
 
-<h2>13. Penutup</h2>
+<div class="pindah"></div>
+
+<h2>13. Lampiran — Tangkapan Layar Sistem</h2>
+
+<p>
+Seluruh tangkapan berikut diambil dari sistem yang benar-benar berjalan pada 23 September 2026, memakai model <code>qwen2.5:3b-instruct-q4_K_M</code>.
+</p>
+
+<div class="gambar">
+<h3>Gambar 1 — Layar masuk</h3>
+<p><img src="tangkapan/01-masuk.png" alt="Layar masuk"></p>
+<p class="kaki">Autentikasi wajib sebelum seluruh endpoint dapat diakses. Pesan galat dibuat sama persis untuk sandi salah maupun akun tidak ada, sehingga tidak dapat dipakai menebak akun mana yang terdaftar.</p>
+</div>
+
+<div class="gambar">
+<h3>Gambar 2 — Percakapan kosong</h3>
+<p><img src="tangkapan/02-kosong.png" alt="Percakapan kosong"></p>
+<p class="kaki">Kolom pertanyaan berada di tengah layar selama percakapan belum dimulai, disertai tiga contoh pertanyaan yang masing-masing mewakili satu tool.</p>
+</div>
+
+<div class="gambar">
+<h3>Gambar 3 — Berkas dilampirkan</h3>
+<p><img src="tangkapan/03-lampiran.png" alt="Berkas dilampirkan"></p>
+<p class="kaki">Berkas diunggah dan diindeks begitu dipilih — kartunya melaporkan “6 potongan terindeks” — lalu pengguna bebas bertanya apa saja di bawahnya.</p>
+</div>
+
+<div class="gambar">
+<h3>Gambar 4 — Jawaban beserta sumbernya</h3>
+<p><img src="tangkapan/04-jawaban-sumber.png" alt="Jawaban beserta sumbernya"></p>
+<p class="kaki">Lencana <b>RAG_SEARCH</b> menunjukkan tool yang benar-benar dipanggil. Panel sumber memuat nama berkas dan skor kemiripan tiap potongan, sehingga setiap jawaban dapat ditelusuri kembali ke asalnya.</p>
+</div>
+
+<div class="gambar">
+<h3>Gambar 5 — Daftar berkas terunggah</h3>
+<p><img src="tangkapan/05-panel-dokumen.png" alt="Daftar berkas terunggah"></p>
+<p class="kaki">Dokumen terindeks dan gambar ditampilkan bersama. Gambar ditandai “dibaca saat ditanyakan” karena teksnya memang baru diekstraksi ketika ditanyakan, bukan saat diunggah.</p>
+</div>
+
+<div class="gambar">
+<h3>Gambar 6 — Pemilihan model</h3>
+<p><img src="tangkapan/06-pemilih-model.png" alt="Pemilihan model"></p>
+<p class="kaki">Daftar model dibaca langsung dari Ollama, bukan dari daftar yang disalin. Model embedding disaring agar tidak ikut terpilih sebagai model percakapan.</p>
+</div>
+
+<div class="gambar">
+<h3>Gambar 7 — Keadaan sistem</h3>
+<p><img src="tangkapan/07-keadaan-sistem.png" alt="Keadaan sistem"></p>
+<p class="kaki">Status backend, model yang aktif, dimensi vektor, dan kesiapan basis data beserta extension pgvector.</p>
+</div>
+
+<div class="gambar">
+<h3>Gambar 8 — Pembatasan akses peran READ_ONLY</h3>
+<p><img src="tangkapan/08-peran-readonly.png" alt="Pembatasan akses peran READ_ONLY"></p>
+<p class="kaki">Pada akun READ_ONLY <b>tombol lampiran tidak ada</b> dan lencana peran berubah. Pembatasan ini bukan hanya di antarmuka: permintaan yang sama dari akun tersebut dibalas <b>403</b> oleh backend.</p>
+</div>
+
+<div class="gambar">
+<h3>Gambar 9 — Tampilan pada layar sempit</h3>
+<p><img class="sempit" src="tangkapan/09-layar-sempit.png" alt="Tampilan pada layar sempit"></p>
+<p class="kaki">Pada lebar 420 piksel sidebar disembunyikan, tombol memakai ikon saja, dan tidak terjadi gulir mendatar.</p>
+</div>
+
+<div class="pindah"></div>
+
+<h2>14. Penutup</h2>
 <p>
 Sistem yang dilaporkan telah berjalan dan diuji terhadap keadaan
 sesungguhnya, bukan hanya pada lingkungan pengujian. Nilai utamanya bukan

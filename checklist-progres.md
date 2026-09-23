@@ -1811,6 +1811,37 @@ menangkapnya justru peringatan lint tentang impor yang tidak terpakai.
 
 Tidak ada galat konsol. Peringatan lint tetap 2. Build produksi lolos.
 
+### Laporan BNSP dilengkapi tangkapan layar · 23 Sep 2026
+
+Diminta pengguna. Laporan menjadi **18 halaman** dengan lampiran sembilan
+tangkapan layar dari sistem yang berjalan.
+
+**Alat cetaknya diganti, dan itu perubahan yang perlu.** LibreOffice tidak
+memadai untuk laporan bergambar: ia mengabaikan lebar gambar dari HTML
+maupun CSS, dan mengabaikan pula resolusi cetak yang ditanam di dalam
+berkas PNG (chunk pHYs) — ketiganya dicoba dan gagal. Gambar selalu
+disisipkan pada ukuran piksel dibagi 96 dpi, sehingga tangkapan selebar
+1280 px meluber jauh melewati batas halaman. Satu-satunya jalan keluar di
+sana adalah memperkecil berkas gambarnya, yang berarti mengorbankan
+ketajaman cetak.
+
+Diganti **Chromium lewat Playwright** (`bangun-laporan.mjs`), yang mencetak
+dari mesin render peramban sehingga CSS berlaku sepenuhnya. Selain
+menyelesaikan soal gambar, ini memperbaiki pula garis dan lebar tabel yang
+sebelumnya harus dipaksakan lewat atribut HTML.
+
+**Sidebar dibersihkan sebelum ditangkap.** Riwayat memuat 31 sesi artefak
+pengujian saya sendiri (`uji-`, `diag-`, `ukur`, `racun`, `repro`,
+`model`) — tidak pantas muncul di dokumen asesmen. Hanya sesi berawalan itu
+yang dihapus; **13 sesi milik pengguna tidak disentuh**.
+
+Sembilan gambar, masing-masing berketerangan yang menyebutkan apa yang
+dibuktikannya. Yang paling berbobot untuk asesmen: Gambar 4 memperlihatkan
+lencana tool, jawaban, dan panel sumber berisi nama berkas beserta skor;
+Gambar 8 memperlihatkan tombol lampiran **hilang** pada akun READ_ONLY —
+dan keterangannya menegaskan pembatasan itu juga ditegakkan backend dengan
+403, bukan hanya disembunyikan di antarmuka.
+
 ### Laporan proyek untuk asesmen BNSP · selesai (23 Sep 2026)
 
 Diminta pengguna. Laporan 13 halaman, `laporan/laporan-proyek-agentic-rag.pdf`,

@@ -19,6 +19,7 @@ import {
   useState,
 } from 'react'
 import { ambilRiwayat, kirimPesan, unggahBerkas } from '../services/api'
+import { lengkapiPertanyaan } from '../services/lampiran'
 import {
   IkonBasisData,
   IkonBerkas,
@@ -219,7 +220,7 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
   async function kirim(teks) {
     const mentah = teks.trim()
     if (!mentah || menunggu) return
-    const isi = lengkapiPertanyaan(mentah)
+    const isi = lengkapiPertanyaan(mentah, lampiran)
 
     tambah({ role: 'user', content: isi })
     // Lampiran dilepas setelah pertanyaannya terkirim. Berkasnya tetap
@@ -266,22 +267,6 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
     } finally {
       onUnggah?.()
     }
-  }
-
-  /**
-   * Sisipkan nama berkas ke pertanyaan bila belum disebut.
-   *
-   * Lampirannya terlihat jelas oleh pengguna, tetapi model tidak melihat
-   * antarmuka — ia hanya menerima teks. Menyebut nama berkas secara
-   * eksplisit selalu tepat, sedangkan "dokumen ini" tidak; itu pelajaran
-   * B-29, dan tetap berlaku walau berkasnya kini tampak menempel.
-   */
-  function lengkapiPertanyaan(teks) {
-    if (!lampiran || lampiran.status !== 'siap') return teks
-    if (teks.toLowerCase().includes(lampiran.nama.toLowerCase())) return teks
-    return lampiran.jenis === 'gambar'
-      ? `Pada gambar ${lampiran.nama}, ${teks}`
-      : `Menurut dokumen ${lampiran.nama}, ${teks}`
   }
 
   const kolom = (

@@ -3,6 +3,7 @@
  */
 import { useEffect, useState } from 'react'
 import { daftarSesi, hapusSesi } from '../services/api'
+import { pisahLampiran } from '../services/lampiran'
 import { IkonSilang, IkonTambah } from './Ikon'
 
 /**
@@ -124,7 +125,12 @@ export default function Sidebar({ sessionId, onPilih, onBaru, penanda, bolehHapu
                     >
                       <div className="min-w-0 flex-1">
                         <p className={`truncate ${aktif ? 'font-medium' : ''}`}>
-                          {s.judul}
+                          {/* Judul diambil dari pesan pertama, yang bisa
+                              memuat sisipan nama berkas. Sisipan itu dibuang
+                              di sini juga — kalau tidak, seluruh percakapan
+                              berlampiran terlihat berjudul "Menurut dokumen
+                              …" dan sulit dibedakan satu sama lain. */}
+                          {pisahLampiran(s.judul).teks}
                         </p>
                         <p className="mt-0.5 text-[11px] text-redup">
                           {jam(s.terakhir)} · {s.jumlah_pesan} pesan

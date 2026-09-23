@@ -12,7 +12,8 @@
  * itu untuk membedakan giliran siapa.
  */
 import Markdown from 'react-markdown'
-import { IkonPanahKanan, IkonPeringatan } from './Ikon'
+import { pisahLampiran } from '../services/lampiran'
+import { IkonBerkas, IkonGambar, IkonPanahKanan, IkonPeringatan } from './Ikon'
 
 function LencanaTool({ tool }) {
   if (!tool || tool === 'none') return null
@@ -82,6 +83,39 @@ function DaftarSumber({ sources }) {
   )
 }
 
+/**
+ * Berkas yang dilampirkan pada pertanyaan, tampil sebagai kartu di atas
+ * gelembungnya — bukan disisipkan ke dalam kalimat pengguna.
+ *
+ * Nama berkas memang ikut terkirim ke model (lihat `services/lampiran.js`),
+ * tetapi menampilkannya di dalam kalimat membuat pengguna membaca sesuatu
+ * yang tidak ia tulis.
+ */
+function KartuBerkasPesan({ lampiran }) {
+  const Ikon = lampiran.jenis === 'gambar' ? IkonGambar : IkonBerkas
+  const ekst = (lampiran.nama.split('.').pop() || '').toUpperCase()
+  return (
+    <div className="mb-1.5 flex justify-end">
+      <div className="flex w-full max-w-sm items-center gap-2.5 rounded-2xl border border-garis bg-naik px-3 py-2.5">
+        <span
+          aria-hidden
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-naik2 text-sedang"
+        >
+          <Ikon ukuran={16} />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-[13px] font-medium text-terang">
+            {lampiran.nama}
+          </span>
+          <span className="mt-0.5 block text-[11px] text-redup">
+            {lampiran.jenis === 'gambar' ? `Gambar ${ekst}` : ekst || 'Dokumen'}
+          </span>
+        </span>
+      </div>
+    </div>
+  )
+}
+
 export default function MessageBubble({ message }) {
   const { role, content, tool, sources, error } = message
   const dariPengguna = role === 'user'
@@ -96,10 +130,16 @@ export default function MessageBubble({ message }) {
   }
 
   if (dariPengguna) {
+    // Rujukan berkas dibaca kembali dari teks yang tersimpan, sehingga
+    // pesan baru dan pesan yang dimuat ulang dari riwayat tampil sama.
+    const { lampiran, teks } = pisahLampiran(content)
     return (
-      <div className="animate-muncul flex justify-end">
-        <div className="max-w-[85%] rounded-3xl rounded-br-lg border border-garis bg-naik px-4 py-2.5 text-[15px] leading-relaxed text-terang">
-          <p className="whitespace-pre-wrap">{content}</p>
+      <div className="animate-muncul">
+        {lampiran && <KartuBerkasPesan lampiran={lampiran} />}
+        <div className="flex justify-end">
+          <div className="max-w-[85%] rounded-3xl rounded-br-lg border border-garis bg-naik px-4 py-2.5 text-[15px] leading-relaxed text-terang">
+            <p className="whitespace-pre-wrap">{teks}</p>
+          </div>
         </div>
       </div>
     )

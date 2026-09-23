@@ -1763,6 +1763,54 @@ penempelannya, bukan berkasnya.
 
 Tidak ada galat konsol. Peringatan lint tetap 2. Build produksi lolos.
 
+### Berkas tampil sebagai kartu pada pesan, bukan disisipkan ke kalimat · 23 Sep 2026
+
+Diminta pengguna sambil menunjukkan contoh, menindaklanjuti konsekuensi
+yang saya sebut sebelumnya: gelembung pertanyaan menampilkan versi yang
+sudah dilengkapi, bukan yang diketik. Pengguna benar bahwa itu
+membingungkan — dan caranya lebih baik.
+
+Sekarang kalimatnya tampil apa adanya, dengan berkasnya sebagai kartu di
+atas gelembung.
+
+**Nama berkas tetap terkirim ke model** — itu tidak berubah, dan memang
+tidak boleh berubah: model tidak melihat antarmuka, ia hanya menerima teks,
+dan "file ini" tidak punya arti baginya (B-29). Yang berubah hanya
+penyajiannya.
+
+**Kuncinya: rujukan itu dibaca kembali dari teks yang tersimpan.**
+`pisahLampiran()` memisahkan awalan `Menurut dokumen <nama>, ` atau
+`Pada gambar <nama>, ` saat menampilkan. Karena yang dibaca adalah teks
+yang memang tersimpan, pesan baru dan pesan yang dimuat ulang dari riwayat
+tampil sama persis — **tanpa kolom baru di database dan tanpa migrasi**.
+Alternatifnya, menyimpan lampiran sebagai keadaan terpisah, berarti dua
+sumber yang bisa berbeda dan satu perubahan skema.
+
+Penyisip dan pembacanya diletakkan berdampingan di `services/lampiran.js`.
+Keduanya harus memakai bentuk yang sama persis; bila salah satu diubah
+sendirian, kartu berhenti muncul **tanpa galat apa pun** — kegagalan diam
+yang paling mahal dicari.
+
+**Judul di sidebar ikut dirapikan.** Judul diambil dari pesan pertama, jadi
+tanpa ini seluruh percakapan berlampiran tampak berjudul "Menurut dokumen
+…" dan sulit dibedakan satu sama lain.
+
+**Satu kesalahan saya saat mengerjakan:** potongan indeks yang salah arah
+membuat `kirim()` dan `pilihBerkas()` tergandakan di ChatBox. JavaScript
+menerima definisi ganda tanpa mengeluh, jadi build tetap lolos — yang
+menangkapnya justru peringatan lint tentang impor yang tidak terpakai.
+
+**Diuji di browser** dengan berkas sungguhan dan model sungguhan:
+
+| | |
+|---|---|
+| Giliran pengguna | kartu `ktp-uji.jpg` / `Gambar JPG`, gelembung "apa isi file ini" |
+| Sisipan `Pada gambar …,` | tidak tampil |
+| **Setelah halaman dimuat ulang** | kartu tetap tampil, kalimat tetap bersih |
+| Judul sidebar | "apa isi file ini", tanpa sisipan |
+
+Tidak ada galat konsol. Peringatan lint tetap 2. Build produksi lolos.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

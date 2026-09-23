@@ -1811,6 +1811,32 @@ menangkapnya justru peringatan lint tentang impor yang tidak terpakai.
 
 Tidak ada galat konsol. Peringatan lint tetap 2. Build produksi lolos.
 
+### Laporan BNSP: diagram repositori dan tautan · 23 Sep 2026
+
+Diminta pengguna. Laporan menjadi **19 halaman, 10 gambar**.
+
+**Diagram dari gitdiagram.com diambil dengan Chromium**, bukan diunduh:
+halamannya merender diagram di sisi peramban, sehingga pengambilan lewat
+HTTP biasa hanya menghasilkan kerangka kosong. Dari 20 SVG pada halaman
+itu, yang terbesar dipilih sebagai diagramnya — sisanya ikon antarmuka.
+Ditangkap pada `deviceScaleFactor: 2` sehingga berukuran 2304×4510 px dan
+tetap tajam saat dicetak setinggi 21 cm.
+
+**Sekalian diperiksa isinya**, dan hasilnya layak dicatat: diagram itu
+**tidak lagi memuat "Compatible Provider"** dan satu-satunya penyedia model
+yang muncul adalah "Ollama local models". Diagram yang dibangkitkan dari
+kode dengan demikian ikut membuktikan keputusan D-17 — bukti yang lebih
+kuat daripada pernyataan di dalam laporan sendiri, karena tidak disusun
+penulisnya. Itu yang ditulis pada keterangan gambarnya.
+
+Diagram ditempatkan di §3 sebagai Gambar 1, sehingga sembilan tangkapan
+lampiran bergeser menjadi Gambar 2–10; rujukan pada tabel pemetaan
+kompetensi ikut disesuaikan.
+
+Tautan repositori dan diagram ditambahkan pada §11 beserta penunjuk ke
+`prd.md`, `docs/tech-decisions.md`, `docs/bug-log.md`, dan
+`checklist-progres.md`, dan URL lengkapnya dicantumkan di sampul.
+
 ### Laporan BNSP dilengkapi tangkapan layar · 23 Sep 2026
 
 Diminta pengguna. Laporan menjadi **18 halaman** dengan lampiran sembilan

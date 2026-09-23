@@ -43,3 +43,9 @@ img { border: 1px solid #999; width: 88%; height: auto; display: block; margin: 
 img.sempit { width: 8.5cm; }
 /* Gambar dan keterangannya jangan terpisah antar halaman. */
 figure, .gambar { break-inside: avoid; page-break-inside: avoid; margin-bottom: 14pt; }
+
+/* Diagram repositori jauh lebih tinggi daripada lebar; yang dibatasi
+   tingginya, bukan lebarnya, supaya muat dalam satu halaman utuh. */
+img.tinggi { width: auto; height: 21cm; max-width: 100%; }
+.tautan { font-family: "Liberation Mono", monospace; font-size: 9.5pt;
+          word-break: break-all; }

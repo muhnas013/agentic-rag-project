@@ -1597,6 +1597,50 @@ diuji.
 
 Log layanan ditaruh di `logs/` dan diabaikan Git.
 
+### Dokumen pengetahuan Kabupaten Hulu Sungai Selatan · selesai (23 Sep 2026)
+
+Diminta pengguna: buatkan PDF pengetahuan umum tentang Kabupaten HSS untuk
+basis pengetahuan asisten.
+
+**Satu keputusan menentukan seluruh isinya: tidak ada satu pun angka
+statistik yang dikarang.** HSS kabupaten nyata. Bila jumlah penduduk atau
+luas wilayah ditulis asal lalu diindeks, asisten akan menyebutnya dengan
+yakin **dan menyertakan nama berkas sebagai sumber** — persis pola B-29:
+jawaban terdengar meyakinkan justru karena bentuknya benar, padahal isinya
+salah. Setiap tempat yang seharusnya memuat angka ditandai
+`[perlu data resmi BPS/Pemda]`, dan penanda itu ikut terbaca asisten
+sehingga kekosongannya tersampaikan alih-alih terisi.
+
+Tiga dokumen, masing-masing 6 potongan:
+
+- `01-profil-hulu-sungai-selatan.pdf` — identitas, bentang alam (Meratus di
+  timur, rawa Daha di barat), sebelas kecamatan, Kerajaan Negara Daha
+- `02-pariwisata-loksado-meratus.pdf` — Loksado, balanting paring, air
+  terjun, balai dan Aruh Ganal Dayak Meratus
+- `03-kuliner-kerajinan-hss.pdf` — ketupat Kandangan, dodol, pandai besi
+  Nagara, kerbau kalang
+
+Dibuat dari sumber HTML lewat LibreOffice — tidak memasang pustaka baru;
+`reportlab` tidak ada di container maupun host, dan `soffice` sudah tersedia.
+Sumber HTML-nya ikut disimpan supaya isinya bisa dikoreksi lalu dibuat ulang.
+
+**Diuji terhadap sistem hidup**, termasuk dua pertanyaan yang jawabannya
+sengaja dikosongkan:
+
+| Pertanyaan | Hasil |
+|---|---|
+| Apa itu balanting paring? | benar, bersumber PDF pariwisata |
+| Apa yang khas dari Ketupat Kandangan? | benar, dua ciri tepat seperti di dokumen |
+| Berapa jumlah penduduk HSS? | **"Data tersebut belum ada di dokumen"** |
+| Berapa luas wilayah HSS? | **menolak menyimpulkan, menyebut yang tersedia saja** |
+
+Dua yang terakhir adalah inti pengujiannya: sistem menolak mengarang angka.
+
+`dokumen-pengetahuan/BACA-DULU.md` mencatat apa yang masih perlu
+diverifikasi — daftar kecamatan, latar sejarah, nama air terjun, rincian
+adat — dan cara mengganti penanda dengan angka resmi beserta tahun dan
+sumbernya.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

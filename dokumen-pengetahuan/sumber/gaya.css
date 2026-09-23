@@ -1,0 +1,10 @@
+@page { size: A4; margin: 2.2cm; }
+body { font-family: "Liberation Serif", serif; font-size: 11.5pt; line-height: 1.45; }
+h1 { font-size: 16pt; margin-bottom: 2pt; }
+.sub { font-size: 10pt; color: #444; margin: 0 0 2pt 0; }
+.catatan { font-size: 9.5pt; color: #333; border: 1px solid #999; padding: 6pt 8pt; margin: 8pt 0 14pt 0; }
+h2 { font-size: 12.5pt; margin: 14pt 0 4pt 0; }
+p { margin: 0 0 7pt 0; text-align: justify; }
+ul { margin: 0 0 8pt 0; }
+li { margin-bottom: 3pt; }
+.perlu { font-style: italic; color: #555; }

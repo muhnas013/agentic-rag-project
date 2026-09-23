@@ -415,3 +415,41 @@ dan system prompt, jadi tidak ada dua salinan yang bisa berbeda. System
 prompt kini menyebut gambar yang ada, menegaskan isinya **tidak** dapat
 dicari dengan RAG_Search, dan mengarahkan "foto tersebut" ke gambar
 terbaru — persis pola yang dipakai B-29 untuk dokumen.
+
+### B-32 ✅ Jawaban gagal ditiru dari riwayat, dan kegagalannya berputar
+**Gejala.** Dilaporkan pengguna setelah perbaikan B-31: pertanyaan lanjutan
+tentang foto KTP tetap dijawab "tidak dapat ditemukan", padahal di sesi baru
+pertanyaan yang sama persis berhasil.
+
+**Yang membedakan: riwayat, bukan pertanyaannya.** Di sesi baru 5/5 benar.
+Di sesi pengguna, 0/1 — dan teks penolakannya **sama kata per kata** dengan
+jawaban gagal sebelumnya yang tersimpan di riwayat.
+
+**Sebab.** Riwayat percakapan diumpankan ke model sebagai konteks. Pada model
+3B ia juga menjadi contoh yang ditiru. Sekali sebuah pertanyaan dijawab
+"tidak ditemukan", jawaban itu tersimpan, ikut terkirim pada giliran
+berikutnya, lalu ditiru — dan hasil tiruannya ikut tersimpan pula.
+**Kegagalannya berputar menguatkan diri sendiri.** Riwayat sesi pengguna
+sudah memuat tiga penolakan berturut-turut tentang gambar yang sama.
+
+**Percobaan pertama tidak cukup.** Ditambahkan aturan di system prompt yang
+melarang menyalin jawaban lama. Dengan satu penolakan di riwayat: 6/6 benar.
+Pada sesi pengguna yang memuat tiga penolakan: **tetap gagal**. Instruksi
+kalah oleh contoh yang lebih banyak.
+
+**Perbaikan.** Penjaga struktural di `run_agent`: bila pertanyaan menyangkut
+gambar tetapi dijawab **tanpa memanggil tool apa pun**, jawaban itu hampir
+pasti keliru — isi gambar tidak ada di tempat lain, jadi tidak ada sumber
+sah selain tiruan dari riwayat. Pertanyaannya diulang sekali **tanpa
+riwayat**, dan hasilnya dipakai hanya bila kali ini tool benar-benar
+dipanggil. Bila tidak, jawaban semula dipertahankan: menukar satu tebakan
+dengan tebakan lain tidak memperbaiki apa pun.
+
+**Hasil pada sesi pengguna yang sama**, tanpa menghapus riwayatnya: 4/4 benar,
+`Image_OCR` dipanggil setiap kali.
+
+**Catatan yang lebih luas.** Aturan system prompt dipertahankan sebagai lapis
+pertama yang murah, tetapi B-32 memperlihatkan batasnya: pada model kecil,
+instruksi kalah oleh contoh. Pola "kegagalan yang tersimpan lalu ditiru" ini
+tidak khusus gambar — ia dapat terjadi pada jalur mana pun yang jawabannya
+bergantung pada pemanggilan tool.

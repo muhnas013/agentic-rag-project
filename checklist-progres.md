@@ -1679,6 +1679,45 @@ antaranya dibuktikan gagal pada kode lama.
 
 Jumlah test: 179 -> 185, semuanya lulus.
 
+### Laporan lanjutan: pertanyaan gambar tetap gagal di sesi lama · 23 Sep 2026
+
+Dilaporkan pengguna setelah B-31 diperbaiki. Pemeriksaan waktu memastikan ini
+laporan baru, bukan kutipan lama: pesannya pukul 02:25 UTC, perbaikan B-31
+masuk 02:23 UTC.
+
+**Yang membedakan ternyata riwayat, bukan pertanyaannya.** Di sesi baru,
+pertanyaan yang sama persis berhasil 5/5. Di sesi pengguna gagal — dan teks
+penolakannya sama kata per kata dengan jawaban gagal yang sudah tersimpan
+di riwayat.
+
+**B-32.** Riwayat diumpankan ke model sebagai konteks, tetapi pada model 3B
+ia juga menjadi contoh yang ditiru. Jawaban "tidak ditemukan" tersimpan,
+ikut terkirim pada giliran berikutnya, lalu ditiru — dan tiruannya tersimpan
+pula. Kegagalannya berputar menguatkan diri sendiri; riwayat sesi pengguna
+sudah memuat **tiga penolakan berturut-turut**.
+
+**Percobaan pertama gagal, dan itu informatif.** Aturan di system prompt yang
+melarang menyalin jawaban lama berhasil 6/6 pada riwayat dengan satu
+penolakan, tetapi **tetap gagal** pada sesi pengguna yang memuat tiga. Pada
+model kecil, instruksi kalah oleh contoh yang lebih banyak. Kalau berhenti
+mengukur setelah 6/6 itu, perbaikannya akan dinyatakan selesai padahal belum.
+
+**Perbaikan struktural.** Bila pertanyaan menyangkut gambar tetapi dijawab
+tanpa memanggil tool apa pun, jawabannya hampir pasti keliru — isi gambar
+tidak ada di tempat lain, jadi tidak ada sumber sah selain tiruan. Diulang
+sekali tanpa riwayat, dan hasilnya dipakai **hanya bila tool benar-benar
+dipanggil**; bila tidak, jawaban semula dipertahankan, karena menukar satu
+tebakan dengan tebakan lain tidak memperbaiki apa pun.
+
+**Diuji pada sesi pengguna yang sama, tanpa menghapus riwayatnya: 4/4 benar.**
+
+Sembilan test baru di `test_agent_gambar.py` memakai agent tiruan sehingga
+keputusan alurnya teruji tanpa memanggil LLM; lima dibuktikan gagal pada
+kode sebelumnya. `pytest-asyncio` tidak dipasang — `asyncio.run` sudah cukup
+dan tidak menambah dependensi.
+
+Jumlah test: 185 -> 194, semuanya lulus.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan

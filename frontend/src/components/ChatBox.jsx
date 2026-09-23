@@ -18,7 +18,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { ambilRiwayat, kirimPesan } from '../services/api'
+import { ambilRiwayat, kirimPesan, unggahBerkas } from '../services/api'
 import {
   IkonBasisData,
   IkonBerkas,
@@ -26,6 +26,7 @@ import {
   IkonGambar,
   IkonPanahAtas,
 } from './Ikon'
+import KartuLampiran from './KartuLampiran'
 import { Lambang } from './Merek'
 import PemilihModel from './PemilihModel'
 import MessageBubble from './MessageBubble'
@@ -74,8 +75,9 @@ function KolomPertanyaan({
   peran,
   model,
   onPilihModel,
-  onUnggahSelesai,
-  onUnggahGagal,
+  lampiran,
+  onPilihBerkas,
+  onLepasLampiran,
 }) {
   // Tinggi kolom mengikuti isinya.
   //
@@ -103,6 +105,11 @@ function KolomPertanyaan({
           bersama. Pada pertanyaan panjang, susunan satu baris menyisakan
           kolom teks yang sempit terjepit di antara dua tombol. */}
       <div className="rounded-3xl border border-garis bg-naik p-2.5 shadow-lg shadow-black/20 transition focus-within:border-garis2">
+        {/* Kartu lampiran di atas kolom teks: berkasnya menempel pada
+            percakapan, dan pertanyaan apa pun di bawahnya berlaku untuk
+            berkas itu. */}
+        <KartuLampiran lampiran={lampiran} onLepas={onLepasLampiran} />
+
         <textarea
           ref={inputRef}
           rows={1}
@@ -130,11 +137,7 @@ function KolomPertanyaan({
               supaya tidak menawarkan aksi yang pasti ditolak 403. */}
           <div className="flex min-w-0 items-center gap-1">
             {peran !== 'READ_ONLY' && (
-              <UploadButton
-                nonaktif={menunggu}
-                onSelesai={onUnggahSelesai}
-                onGagal={onUnggahGagal}
-              />
+              <UploadButton nonaktif={menunggu} onPilih={onPilihBerkas} />
             )}
             <PemilihModel
               nilai={model}
@@ -167,6 +170,7 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
   const [masukan, setMasukan] = useState('')
   const [menunggu, setMenunggu] = useState(false)
   const [memuatRiwayat, setMemuatRiwayat] = useState(true)
+  const [lampiran, setLampiran] = useState(null)
   const ujungRef = useRef(null)
   const inputRef = useRef(null)
 
@@ -213,10 +217,15 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
   }
 
   async function kirim(teks) {
-    const isi = teks.trim()
-    if (!isi || menunggu) return
+    const mentah = teks.trim()
+    if (!mentah || menunggu) return
+    const isi = lengkapiPertanyaan(mentah)
 
     tambah({ role: 'user', content: isi })
+    // Lampiran dilepas setelah pertanyaannya terkirim. Berkasnya tetap
+    // terindeks di server, jadi pertanyaan berikutnya masih bisa
+    // menyebutnya — yang dilepas hanya penempelannya, bukan berkasnya.
+    setLampiran(null)
     setMasukan('')
     setMenunggu(true)
 
@@ -237,28 +246,42 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
     }
   }
 
-  function tanganiUnggahan(hasil) {
-    const pesanHasil =
-      hasil.status === 'processed'
-        ? `Dokumen "${hasil.filename}" tersimpan dan diindeks menjadi ${hasil.chunks} potongan.`
-        : `Gambar "${hasil.filename}" tersimpan.`
-    tambah({ role: 'system', content: pesanHasil })
+  async function pilihBerkas(file) {
+    const jenis = /\.(png|jpe?g|webp)$/i.test(file.name) ? 'gambar' : 'dokumen'
+    setLampiran({ nama: file.name, jenis, status: 'mengunggah', progres: 0 })
 
-    // Nama berkas langsung diisikan ke kolom pertanyaan.
-    //
-    // Tanpa ini, pertanyaan sewajarnya seperti "jelaskan isi pdf tadi" tidak
-    // bisa diandalkan: model 3B tidak cukup patuh menyimpulkan bahwa yang
-    // dimaksud adalah unggahan terakhir, sehingga jawabannya bisa diambil
-    // dari dokumen lain. Menyebut namanya secara eksplisit selalu tepat —
-    // jadi namanya disiapkan di sini, bukan dibebankan pada pengguna untuk
-    // mengetiknya kembali.
-    setMasukan(
-      hasil.status === 'processed'
-        ? `Menurut dokumen ${hasil.filename}, `
-        : `Apa isi gambar ${hasil.filename}? `,
-    )
-    inputRef.current?.focus()
-    onUnggah?.()
+    try {
+      const hasil = await unggahBerkas(file, (p) =>
+        setLampiran((l) => (l ? { ...l, progres: p } : l)),
+      )
+      setLampiran({
+        nama: hasil.filename,
+        jenis: hasil.status === 'processed' ? 'dokumen' : 'gambar',
+        status: 'siap',
+        potongan: hasil.chunks ?? 0,
+      })
+      inputRef.current?.focus()
+    } catch (error) {
+      setLampiran({ nama: file.name, jenis, status: 'gagal', galat: error.message })
+    } finally {
+      onUnggah?.()
+    }
+  }
+
+  /**
+   * Sisipkan nama berkas ke pertanyaan bila belum disebut.
+   *
+   * Lampirannya terlihat jelas oleh pengguna, tetapi model tidak melihat
+   * antarmuka — ia hanya menerima teks. Menyebut nama berkas secara
+   * eksplisit selalu tepat, sedangkan "dokumen ini" tidak; itu pelajaran
+   * B-29, dan tetap berlaku walau berkasnya kini tampak menempel.
+   */
+  function lengkapiPertanyaan(teks) {
+    if (!lampiran || lampiran.status !== 'siap') return teks
+    if (teks.toLowerCase().includes(lampiran.nama.toLowerCase())) return teks
+    return lampiran.jenis === 'gambar'
+      ? `Pada gambar ${lampiran.nama}, ${teks}`
+      : `Menurut dokumen ${lampiran.nama}, ${teks}`
   }
 
   const kolom = (
@@ -271,8 +294,9 @@ export default function ChatBox({ ref, peran, sessionId, onPesanBaru, onUnggah }
       peran={peran}
       model={model}
       onPilihModel={pilihModel}
-      onUnggahSelesai={tanganiUnggahan}
-      onUnggahGagal={(msg) => tambah({ role: 'system', content: msg, error: true })}
+      lampiran={lampiran}
+      onPilihBerkas={pilihBerkas}
+      onLepasLampiran={() => setLampiran(null)}
     />
   )
 

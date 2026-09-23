@@ -1718,6 +1718,51 @@ dan tidak menambah dependensi.
 
 Jumlah test: 185 -> 194, semuanya lulus.
 
+### Unggahan jadi lampiran yang menempel di kolom pertanyaan · selesai (23 Sep 2026)
+
+Diminta pengguna sambil menunjukkan contoh: berkas tampil sebagai kartu di
+atas kolom, lalu pengguna bebas bertanya apa saja di bawahnya.
+
+Sebelumnya unggahan langsung menjadi pesan sistem di dalam percakapan, dan
+kolom pertanyaan diisi otomatis `Menurut dokumen <nama>, ` — pengguna
+melanjutkan kalimat yang sudah dimulaikan sistem. Sekarang berkasnya
+menempel sebagai kartu, dan kalimatnya sepenuhnya milik pengguna.
+
+**Berkas diunggah begitu dipilih, bukan menunggu pertanyaan dikirim.**
+Mengindeks PDF makan beberapa detik; mengerjakannya selagi pengguna
+mengetik membuat waktu itu tidak terasa. Kartunya menampilkan kemajuan
+lalu hasilnya — "PDF · 6 potongan terindeks" untuk dokumen, "Gambar JPG ·
+dibaca saat ditanyakan" untuk gambar, karena gambar memang baru dibaca
+ketika ditanyakan.
+
+**Nama berkas tetap disisipkan ke pertanyaan, dan itu disengaja.**
+Lampirannya terlihat jelas oleh pengguna, tetapi model tidak melihat
+antarmuka — ia hanya menerima teks. "Dokumen ini" tidak punya arti baginya.
+Jadi `lengkapiPertanyaan()` menambahkan `Menurut dokumen <nama>, ` atau
+`Pada gambar <nama>, ` bila namanya belum disebut sendiri oleh pengguna.
+Itu pelajaran B-29, dan tetap berlaku walau berkasnya kini tampak menempel.
+
+Konsekuensi yang diterima: pertanyaan yang tampil di gelembung adalah versi
+yang sudah dilengkapi, bukan persis yang diketik. Dipilih begitu supaya apa
+yang terlihat sama dengan apa yang tersimpan di riwayat — bila keduanya
+dibuat berbeda, percakapan yang dimuat ulang akan tampak lain dari saat
+ditulis.
+
+Lampiran dilepas setelah pertanyaannya terkirim. Berkasnya tetap terindeks
+di server, jadi pertanyaan berikutnya masih bisa menyebutnya — yang dilepas
+penempelannya, bukan berkasnya.
+
+**Diuji di browser** dengan berkas sungguhan:
+
+| | |
+|---|---|
+| PDF dilampirkan | kartu muncul, "PDF · 6 potongan terindeks" |
+| Ketik "apa saja isi dokumen ini?" | terkirim sebagai "Menurut dokumen 02-pariwisata-loksado-meratus.pdf, apa saja isi dokumen ini?" |
+| Kartu setelah kirim | terlepas |
+| Gambar KTP dilampirkan, tanya "siapa namanya?" | dijawab **MIRA SETIAWAN** oleh model sungguhan, tool Image_OCR |
+
+Tidak ada galat konsol. Peringatan lint tetap 2. Build produksi lolos.
+
 ---
 
 **Menyambung pengerjaan:** ringkasan posisi, keputusan yang sudah diambil, dan
